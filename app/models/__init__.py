@@ -1,7 +1,7 @@
 # app/models/__init__.py
 from app.models.base import BaseModel, TimestampMixin
 from app.models.user import User
-from app.models.auth import Role, Permission, UserRole, RolePermission, UserToken, TokenType
+from app.models.auth import Role, Permission, UserRole, RolePermission, UserToken, TokenType, TokenBlacklist
 from app.models.pet import Pet, Species, Gender
 from app.models.post import Post, Visibility
 from app.models.album import Album
@@ -20,7 +20,7 @@ __all__ = [
     
     # User & Auth
     "User", "Role", "Permission", "UserRole", "RolePermission", 
-    "UserToken", "TokenType",
+    "UserToken", "TokenType", "TokenBlacklist",
     
     # Pet
     "Pet", "Species", "Gender",

@@ -1,0 +1,44 @@
+# 檢查 admin 用戶狀態
+python scripts/check_admin.py
+# 修復 admin 用戶
+python scripts/check_admin.py --fix
+# 測試登入
+python scripts/check_admin.py --test
+
+
+# 完整安裝（推薦）
+python scripts/init_db.py --drop
+python scripts/init_db.py --complete
+# 分步安裝
+python scripts/init_db.py --sql scripts/create_tables.sql
+python scripts/init_db.py --init-data
+# 檢查和驗證
+python scripts/init_db.py --check
+python scripts/init_db.py --verify
+# 完全重置到初始狀態
+python scripts/init_db.py --reset
+# 只清理用戶生成的內容，保留系統數據
+python scripts/init_db.py --clean posts comments likes media pet_medical_records
+# 備份
+python scripts/init_db.py --exportsql
+python scripts/init_db.py --exportsql production_backup.sql
+# 恢復
+python scripts/init_db.py --importsql production_backup.sql
+
+
+# 運行所有測試
+python scripts/test_api_complete.py
+# 運行特定測試組
+python scripts/test_api_complete.py auth
+python scripts/test_api_complete.py admin
+python scripts/test_api_complete.py pet
+# 只測試權限功能
+python scripts/test_api_complete.py permissions
+# 只測試 token 過期
+python scripts/test_api_complete.py token-expiration
+# 只測試並發會話
+python scripts/test_api_complete.py sessions
+
+python scripts/test_api_complete.py rate-limit
+# 查看幫助
+python scripts/test_api_complete.py --help

@@ -25,10 +25,12 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
+    if "jti" not in to_encode:
+        to_encode["jti"] = secrets.token_urlsafe(16)
+    
     to_encode.update({
         "exp": expire,
         "iat": datetime.utcnow(),
-        "jti": secrets.token_urlsafe(16)  # JWT ID
     })
     
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -38,11 +40,13 @@ def create_refresh_token(data: Dict[str, Any]) -> str:
     """創建 JWT refresh token"""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    if "jti" not in to_encode:
+        to_encode["jti"] = secrets.token_urlsafe(16)
+    
     to_encode.update({
         "exp": expire,
         "iat": datetime.utcnow(),
         "type": "refresh",
-        "jti": secrets.token_urlsafe(16)
     })
     
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

@@ -1,5 +1,5 @@
 # app/models/auth.py
-from sqlalchemy import Column, BigInteger, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Enum
+from sqlalchemy import Column, BigInteger, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Enum, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
@@ -35,8 +35,7 @@ class Permission(BaseModel):
     # 關聯
     roles = relationship("RolePermission", back_populates="permission", cascade="all, delete-orphan")
 
-# UserRole 不應該繼承 BaseModel，因為它是一個關聯表
-class UserRole(Base):  # 注意：這裡改為繼承 Base 而不是 BaseModel
+class UserRole(Base):
     __tablename__ = "user_roles"
     
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
@@ -59,8 +58,7 @@ class UserRole(Base):  # 注意：這裡改為繼承 Base 而不是 BaseModel
         overlaps="roles"
     )
 
-# RolePermission 也不應該繼承 BaseModel
-class RolePermission(Base):  # 注意：這裡改為繼承 Base 而不是 BaseModel
+class RolePermission(Base):
     __tablename__ = "role_permissions"
     
     role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
@@ -81,6 +79,29 @@ class UserToken(BaseModel):
     expires_at = Column(DateTime, nullable=False, index=True)
     revoked_at = Column(DateTime)
     last_used_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
     
     # 關聯
     user = relationship("User", back_populates="tokens")
+
+class TokenBlacklist(BaseModel):
+    """Token 黑名單表 - 用於追蹤已撤銷的 tokens"""
+    __tablename__ = "token_blacklist"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    jti = Column(String(255), nullable=False, unique=True, index=True)  # JWT ID
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)  # Token 原本的過期時間
+    reason = Column(String(255))  # 撤銷原因
+    blacklisted_at = Column(DateTime, server_default=func.now())  # 加入黑名單的時間
+    blacklisted_by = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"))  # 誰執行的撤銷
+    
+    # 關聯
+    user = relationship("User", foreign_keys=[user_id], backref="blacklisted_tokens")
+    blacklisted_by_user = relationship("User", foreign_keys=[blacklisted_by])
+    
+    # 添加索引以提高查詢效能
+    __table_args__ = (
+        UniqueConstraint('jti', name='uq_token_blacklist_jti'),
+    )
+

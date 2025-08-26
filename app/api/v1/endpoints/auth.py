@@ -3,13 +3,16 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import Any
+from datetime import datetime
 from app.core.database import get_db
 from app.core.security import oauth2_scheme, decode_token
+from app.core.permissions import get_current_user
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
 from app.schemas.auth import Token, LoginRequest, RefreshTokenRequest, ChangePasswordRequest, ResetPasswordRequest, ResetPasswordConfirm
 from app.schemas.user import UserCreate, UserResponse
 from app.models.user import User
+from app.models.auth import TokenBlacklist
 
 router = APIRouter()
 
@@ -84,36 +87,35 @@ def logout(
     auth_service = AuthService(db)
     
     # 解碼 token 獲取用戶 ID
-    payload = decode_token(token)
-    user_id = payload.get("sub")
-    
-    if user_id:
-        auth_service.revoke_token(token, int(user_id))
-    
-    return {"message": "Successfully logged out"}
+    try:
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        
+        if user_id:
+            auth_service.logout(token, int(user_id))
+            return {"message": "Successfully logged out"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token"
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Logout failed"
+        )
 
 @router.post("/change-password")
 def change_password(
     password_data: ChangePasswordRequest,
-    token: str = Depends(oauth2_scheme),
+    current_user: User = Depends(get_current_user),  # 使用 get_current_user
     db: Session = Depends(get_db)
 ) -> Any:
     """修改密碼"""
-    # 獲取當前用戶
-    payload = decode_token(token)
-    user_id = payload.get("sub")
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
     auth_service = AuthService(db)
-    auth_service.change_password(user, password_data.old_password, password_data.new_password)
+    auth_service.change_password(current_user, password_data.old_password, password_data.new_password)
     
-    return {"message": "Password changed successfully"}
+    return {"message": "Password changed successfully. Please login again with your new password."}
 
 @router.post("/reset-password")
 def request_password_reset(
@@ -139,3 +141,48 @@ def confirm_password_reset(
     auth_service.reset_password(reset_confirm.token, reset_confirm.new_password)
     
     return {"message": "Password reset successfully"}
+
+@router.get("/token/status")
+def check_token_status(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Any:
+    """檢查 token 狀態（調試用）"""
+    try:
+        payload = decode_token(token)
+        jti = payload.get("jti")
+        user_id = payload.get("sub")
+        iat = payload.get("iat")
+        exp = payload.get("exp")
+        
+        # 檢查黑名單
+        blacklisted = False
+        if jti:
+            bl_entry = db.query(TokenBlacklist).filter(
+                TokenBlacklist.jti == jti
+            ).first()
+            blacklisted = bl_entry is not None
+        
+        # 檢查用戶狀態
+        user = db.query(User).filter(User.id == int(user_id)).first() if user_id else None
+        
+        return {
+            "token_valid": True,
+            "jti": jti,
+            "user_id": user_id,
+            "issued_at": datetime.fromtimestamp(iat).isoformat() if iat else None,
+            "expires_at": datetime.fromtimestamp(exp).isoformat() if exp else None,
+            "blacklisted": blacklisted,
+            "user_exists": user is not None,
+            "user_active": user.is_active if user else None,
+            "last_password_change": user.last_password_change.isoformat() if user and user.last_password_change else None,
+            "token_issued_after_password_change": (
+                datetime.fromtimestamp(iat) > user.last_password_change 
+                if user and user.last_password_change and iat else None
+            )
+        }
+    except Exception as e:
+        return {
+            "token_valid": False,
+            "error": str(e)
+        }
