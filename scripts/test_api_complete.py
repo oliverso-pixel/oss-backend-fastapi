@@ -918,49 +918,73 @@ class CompletePetSocialAPITester:
             except Exception as e:
                 self.print_result(False, f"Logout error: {str(e)}")
     
-    # ========== 主測試函數（更新版） ==========
-    
-    def run_all_tests(self):
-        """運行所有測試（包含新增的測試）"""
-        print("🚀 Starting Complete Pet Social Platform API Tests")
-        print(f"📍 API Base URL: {self.api_v1}")
-        print(f"🕐 Test Time: {datetime.now()}")
-        print("="*60)
+    # ========== 登出error ==========
+
+    def test_logout_error_handling(self):
+        """測試 logout 的錯誤處理"""
+        self.print_section("Logout Error Handling Tests")
         
-        # 運行測試組
-        test_groups = [
-            ("Basic Connectivity", self.test_basic_connectivity),
-            ("Authentication Flow", self.test_authentication_flow),
-            ("Token Expiration", self.test_token_expiration),
-            ("Permission Boundaries", self.test_permission_boundaries),
-            ("Cross-User Access", self.test_cross_user_access),
-            ("Concurrent Sessions", self.test_concurrent_sessions),
-            ("Rate Limiting", self.test_rate_limiting),
-            ("Pet Management", self.test_pet_management),
-            ("Post Management", self.test_post_management),
-            ("Album Management", self.test_album_management),
-            ("Merchant Flow", self.test_merchant_flow),
-            ("Product Management", self.test_product_management),
-            ("Medical Records", self.test_medical_records),
-            ("Vaccination Records", self.test_vaccination_records),
-            ("Notifications", self.test_notifications),
-            ("Social Features", self.test_social_features),
-            ("Admin Features", self.test_admin_features),
-            ("Error Handling", self.test_error_handling),
-            ("Performance", self.test_performance),
-            ("Cleanup", self.test_cleanup)
-        ]
+        # 1. 測試使用過期的 token 登出
+        expired_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNiIsImp0aSI6ImtSUWZLcUZLczVBcVpYeXNlUGNwR0EiLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2MjY0MjUxLCJpYXQiOjE3NTYyNjMzNTF9._J5S2kZvD26_23p33OmrubNC5PEcE0arT0WbQCFMsLg"
+        headers = {"Authorization": f"Bearer {expired_token}"}
         
-        for group_name, test_func in test_groups:
+        try:
+            response = requests.post(f"{self.api_v1}/auth/logout", headers=headers)
+            if response.status_code == 401:
+                error_detail = response.json().get("detail", "")
+                self.print_result(
+                    "expired" in error_detail.lower() or "invalid" in error_detail.lower(),
+                    f"Expired token logout returns 401 with message: {error_detail}"
+                )
+            else:
+                self.print_result(
+                    False,
+                    f"Unexpected status code for expired token: {response.status_code}"
+                )
+        except Exception as e:
+            self.print_result(False, f"Expired token logout test error: {str(e)}")
+        
+        # 2. 測試使用無效格式的 token 登出
+        invalid_token = "this.is.not.a.valid.jwt"
+        headers = {"Authorization": f"Bearer {invalid_token}"}
+        
+        try:
+            response = requests.post(f"{self.api_v1}/auth/logout", headers=headers)
+            self.print_result(
+                response.status_code == 401,
+                f"Invalid token logout returns 401"
+            )
+        except Exception as e:
+            self.print_result(False, f"Invalid token logout test error: {str(e)}")
+        
+        # 3. 測試沒有 token 的登出
+        try:
+            response = requests.post(f"{self.api_v1}/auth/logout")
+            self.print_result(
+                response.status_code == 401,
+                "No token logout returns 401"
+            )
+        except Exception as e:
+            self.print_result(False, f"No token logout test error: {str(e)}")
+        
+        # 4. 測試正常 token 登出（如果有的話）
+        if self.access_token:
+            headers = {"Authorization": f"Bearer {self.access_token}"}
             try:
-                test_func()
+                response = requests.post(f"{self.api_v1}/auth/logout", headers=headers)
+                self.print_result(
+                    response.status_code == 200,
+                    "Valid token logout returns 200"
+                )
+                
+                # 測試登出後 token 是否失效
+                response = requests.get(f"{self.api_v1}/users/me", headers=headers)
+                self.print_result(
+                    response.status_code == 401,
+                    "Token properly invalidated after logout"
+                )
             except Exception as e:
-                print(f"\n❌ Critical error in {group_name}: {str(e)}")
-                self.test_results['failed'] += 1
-                self.test_results['errors'].append(f"Critical error in {group_name}: {str(e)}")
-        
-        # 生成報告
-        self.generate_report()
+                self.print_result(False, f"Valid token logout test error: {str(e)}")
 
     # ========== 寵物管理測試 ==========
     
@@ -990,21 +1014,30 @@ class CompletePetSocialAPITester:
                 json=pet_data,
                 headers=headers
             )
-            if response.status_code == 200:
+            if response.status_code == 201:
                 pet = response.json()
                 self.test_pet_id = pet.get("id")
                 self.print_result(True, f"Pet created: {pet_data['name']}")
+                
+                # 驗證返回的數據
+                assert pet.get("name") == pet_data["name"]
+                assert pet.get("species") == pet_data["species"]
+                assert pet.get("owner_username") is not None
             else:
                 self.print_result(False, f"Pet creation failed: {response.status_code}")
         except Exception as e:
             self.print_result(False, f"Pet creation error: {str(e)}")
         
-        # 2. 獲取寵物列表
+        # 2. 獲取我的寵物列表
         try:
             response = requests.get(f"{self.api_v1}/pets", headers=headers)
-            self.print_result(response.status_code == 200, "Get pet list")
+            if response.status_code == 200:
+                data = response.json()
+                self.print_result(True, f"Get my pets: {data.get('total', 0)} pets found")
+            else:
+                self.print_result(False, "Get pets failed")
         except Exception as e:
-            self.print_result(False, f"Get pet list error: {str(e)}")
+            self.print_result(False, f"Get pets error: {str(e)}")
         
         # 3. 獲取單個寵物
         if self.test_pet_id:
@@ -1032,6 +1065,39 @@ class CompletePetSocialAPITester:
                 self.print_result(response.status_code == 200, "Update pet")
             except Exception as e:
                 self.print_result(False, f"Update pet error: {str(e)}")
+        
+        # 5. 搜索寵物
+        try:
+            response = requests.get(
+                f"{self.api_v1}/pets/search?q=Test",
+                headers=headers
+            )
+            self.print_result(response.status_code == 200, "Search pets")
+        except Exception as e:
+            self.print_result(False, f"Search pets error: {str(e)}")
+        
+        # 6. 獲取寵物統計
+        if self.test_pet_id:
+            try:
+                response = requests.get(
+                    f"{self.api_v1}/pets/{self.test_pet_id}/statistics",
+                    headers=headers
+                )
+                self.print_result(response.status_code == 200, "Get pet statistics")
+            except Exception as e:
+                self.print_result(False, f"Pet statistics error: {str(e)}")
+        
+        # 7. 測試未登入訪問（應該失敗）
+        try:
+            response = requests.get(f"{self.api_v1}/pets")
+            self.print_result(
+                response.status_code == 401,
+                "Unauthenticated access properly blocked"
+            )
+        except Exception as e:
+            self.print_result(False, f"Auth test error: {str(e)}")
+
+        self.test_logout()
     
     # ========== 貼文測試 ==========
     
@@ -1387,7 +1453,131 @@ class CompletePetSocialAPITester:
             self.print_result(response.status_code == 200, "Mark all as read")
         except Exception as e:
             self.print_result(False, f"Mark all read error: {str(e)}")
+
+    # ========== 隱私功能測試 ==========
     
+    def test_user_privacy_features(self):
+        """測試用戶隱私功能"""
+        self.print_section("User Privacy Features Tests")
+        
+        if not self.access_token:
+            print("⚠️  Skipping privacy tests: No access token")
+            return
+        
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        
+        # 1. 獲取當前用戶的隱私設置
+        try:
+            response = requests.get(
+                f"{self.api_v1}/users/{self.test_user_id}/privacy",
+                headers=headers
+            )
+            if response.status_code == 200:
+                current_privacy = response.json()
+                self.print_result(True, f"Get privacy settings: {current_privacy}")
+            else:
+                self.print_result(False, f"Failed to get privacy settings: {response.status_code}")
+        except Exception as e:
+            self.print_result(False, f"Get privacy settings error: {str(e)}")
+        
+        # 2. 更新隱私設置為私密
+        try:
+            privacy_update = {
+                "privacy_level": "private",
+                "show_email": False,
+                "show_phone": False,
+                "show_online_status": False,
+                "show_last_seen": False
+            }
+            
+            response = requests.put(
+                f"{self.api_v1}/users/{self.test_user_id}/privacy",
+                json=privacy_update,
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                self.print_result(True, "Privacy settings updated to private")
+            else:
+                self.print_result(False, f"Failed to update privacy: {response.status_code}")
+        except Exception as e:
+            self.print_result(False, f"Update privacy error: {str(e)}")
+        
+        # 3. 創建第二個用戶來測試隱私
+        unique_id = self.generate_random_string()
+        second_user_data = {
+            "username": f"privacytest_{unique_id}",
+            "email": f"privacy_{unique_id}@example.com",
+            "password": "TestPassword123!",
+            "display_name": f"Privacy Test User {unique_id}"
+        }
+        
+        try:
+            # 註冊第二個用戶
+            response = requests.post(f"{self.api_v1}/auth/register", json=second_user_data)
+            if response.status_code == 200:
+                second_user_id = response.json().get("id")
+                
+                # 登入第二個用戶
+                response = requests.post(
+                    f"{self.api_v1}/auth/login",
+                    data={
+                        "username": second_user_data["username"],
+                        "password": second_user_data["password"]
+                    },
+                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                )
+                
+                if response.status_code == 200:
+                    second_token = response.json().get("access_token")
+                    second_headers = {"Authorization": f"Bearer {second_token}"}
+                    
+                    # 4. 第二個用戶嘗試查看第一個用戶（隱私模式）
+                    response = requests.get(
+                        f"{self.api_v1}/users/{self.test_user_id}",
+                        headers=second_headers
+                    )
+                    
+                    if response.status_code == 200:
+                        visible_data = response.json()
+                        # 檢查是否只包含最少資訊
+                        has_minimal_data = all(key in visible_data for key in ["id", "username", "display_name"])
+                        has_private_data = any(key in visible_data for key in ["email", "phone", "last_login_at"])
+                        
+                        self.print_result(
+                            has_minimal_data and not has_private_data,
+                            f"Private user shows minimal data only: {list(visible_data.keys())}"
+                        )
+                    else:
+                        self.print_result(False, f"Failed to get user: {response.status_code}")
+            else:
+                self.print_result(False, "Failed to create second user")
+        except Exception as e:
+            self.print_result(False, f"Privacy test error: {str(e)}")
+        
+        # 5. 恢復為公開設置
+        try:
+            privacy_update = {
+                "privacy_level": "public",
+                "show_email": True,
+                "show_phone": True,
+                "show_online_status": True,
+                "show_last_seen": True
+            }
+            
+            response = requests.put(
+                f"{self.api_v1}/users/{self.test_user_id}/privacy",
+                json=privacy_update,
+                headers=headers
+            )
+            
+            self.print_result(
+                response.status_code == 200,
+                "Privacy settings restored to public"
+            )
+        except Exception as e:
+            self.print_result(False, f"Restore privacy error: {str(e)}")
+
     # ========== 社交功能測試 ==========
     
     def test_social_features(self):
@@ -1640,7 +1830,7 @@ class CompletePetSocialAPITester:
     # ========== 主測試函數 ==========
     
     def run_all_tests(self):
-        """運行所有測試"""
+        """運行所有測試（包含新增的測試）"""
         print("🚀 Starting Complete Pet Social Platform API Tests")
         print(f"📍 API Base URL: {self.api_v1}")
         print(f"🕐 Test Time: {datetime.now()}")
@@ -1650,6 +1840,11 @@ class CompletePetSocialAPITester:
         test_groups = [
             ("Basic Connectivity", self.test_basic_connectivity),
             ("Authentication Flow", self.test_authentication_flow),
+            ("Token Expiration", self.test_token_expiration),
+            ("Permission Boundaries", self.test_permission_boundaries),
+            ("Cross-User Access", self.test_cross_user_access),
+            ("Concurrent Sessions", self.test_concurrent_sessions),
+            ("Rate Limiting", self.test_rate_limiting),
             ("Pet Management", self.test_pet_management),
             ("Post Management", self.test_post_management),
             ("Album Management", self.test_album_management),
@@ -1709,6 +1904,7 @@ def main():
             print("  - social")
             print("  - admin")
             print("  - error")
+            print("  - logout-error")
             print("  - performance")
             return
         
@@ -1732,13 +1928,14 @@ def main():
             "social": tester.test_social_features,
             "admin": tester.test_admin_features,
             "error": tester.test_error_handling,
+            "logout-error": tester.test_logout_error_handling,
             "performance": tester.test_performance
         }
         
         test_name = sys.argv[1].lower()
         if test_name in test_map:
             # 某些測試需要先進行認證
-            if test_name not in ["connectivity", "error", "auth", "admin", "rate-limit"]:
+            if test_name not in ["connectivity", "error", "auth", "admin", "rate-limit", "logout-error"]:
                 tester.test_login()
             test_map[test_name]()
             tester.generate_report()

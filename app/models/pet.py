@@ -1,5 +1,5 @@
 # app/models/pet.py
-from sqlalchemy import Column, BigInteger, String, Date, Text, Boolean, ForeignKey, Enum, DECIMAL
+from sqlalchemy import Column, BigInteger, String, Date, Text, Boolean, ForeignKey, Enum as SQLAlchemyEnum, DECIMAL
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 import enum
@@ -24,9 +24,15 @@ class Pet(BaseModel):
     id = Column(BigInteger, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(100), nullable=False)
-    species = Column(Enum(Species), nullable=False)
+    species = Column(
+        SQLAlchemyEnum(Species, values_callable=lambda x: [e.value for e in x]), 
+        nullable=False
+    )
     breed = Column(String(100))
-    gender = Column(Enum(Gender), default=Gender.UNKNOWN)
+    gender = Column(
+        SQLAlchemyEnum(Gender, values_callable=lambda x: [e.value for e in x]), 
+        default=Gender.UNKNOWN
+    )
     birth_date = Column(Date)
     weight = Column(DECIMAL(5, 2))
     description = Column(Text)

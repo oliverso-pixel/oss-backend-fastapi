@@ -1,53 +1,27 @@
 # app/api/va/endpoints/users.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Any
+from typing import List, Any, Union
 from app.core.database import get_db
-from app.core.permissions import get_current_user, is_authenticated
-from app.core.security import oauth2_scheme, decode_token
-from app.schemas.user import UserResponse, UserUpdate
+from app.core.permissions import get_current_user
+from app.schemas.user import (
+    UserResponse, UserUpdate, PrivacySettings,
+    UserPublicResponse, UserLimitedResponse, UserFullResponse
+)
 from app.schemas.base import PaginationParams, PaginatedResponse
 from app.services.user_service import UserService
+from app.services.privacy_service import PrivacyService
 from app.models.user import User
 
 router = APIRouter()
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user(
+def get_current_user_info(
     current_user: User = Depends(get_current_user)
 ) -> Any:
     """獲取當前用戶信息"""
-    return current_user
-
-# def get_current_user(
-#     token: str = Depends(oauth2_scheme),
-#     db: Session = Depends(get_db)
-# ) -> Any:
-#     """獲取當前用戶信息"""
-#     payload = decode_token(token)
-#     if not payload:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Invalid authentication credentials",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-    
-#     user_id = payload.get("sub")
-#     if not user_id:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Invalid token payload",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-    
-#     user = db.query(User).filter(User.id == int(user_id)).first()
-#     if not user:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="User not found"
-#         )
-    
-#     return user
+    privacy_service = PrivacyService(db=None)
+    return privacy_service._get_full_user_data(current_user)
 
 @router.get("/", response_model=PaginatedResponse)
 def get_users(
@@ -55,38 +29,48 @@ def get_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    """獲取用戶列表"""
+    """獲取用戶列表（根據隱私設置過濾）"""
     user_service = UserService(db)
+    privacy_service = PrivacyService(db)
+
     users, total = user_service.get_users(
         skip=pagination.skip,
         limit=pagination.limit
     )
+
+    # 根據隱私設置過濾用戶資料
+    filtered_users = privacy_service.filter_users_by_privacy(users, current_user)
     
     return PaginatedResponse(
-        items=[UserResponse.model_validate(user) for user in users],
+        items=filtered_users,
         total=total,
         page=pagination.page,
         per_page=pagination.per_page,
         pages=(total + pagination.per_page - 1) // pagination.per_page
     )
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}")
 def get_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    """獲取特定用戶信息"""
+    """獲取特定用戶信息（根據隱私設置返回不同資料）"""
     user_service = UserService(db)
+    privacy_service = PrivacyService(db)
+    
     user = user_service.get_user(user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    return user
+    
+    # 根據隱私設置返回可見資料
+    visible_data = privacy_service.get_user_visible_data(current_user, user)
+    return visible_data
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserFullResponse)
 def update_user(
     user_id: int,
     user_update: UserUpdate,
@@ -95,8 +79,8 @@ def update_user(
 ) -> Any:
     """更新用戶信息"""
     # 只能更新自己的信息，除非是管理員
-    if current_user.id != user_id:
-        # TODO: 檢查是否為管理員
+    privacy_service = PrivacyService(db)
+    if current_user.id != user_id and not privacy_service.is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this user"
@@ -109,5 +93,97 @@ def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    return user
+    
+    return privacy_service._get_full_user_data(user)
 
+@router.get("/{user_id}/privacy", response_model=PrivacySettings)
+def get_user_privacy_settings(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    """獲取用戶隱私設置（僅自己或管理員可查看）"""
+    privacy_service = PrivacyService(db)
+    
+    # 只能查看自己的隱私設置，除非是管理員
+    if current_user.id != user_id and not privacy_service.is_admin(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view privacy settings"
+        )
+    
+    user_service = UserService(db)
+    user = user_service.get_user(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # 處理可能的 None 值
+    return PrivacySettings(
+        privacy_level=user.privacy_level.value if user.privacy_level else PrivacyLevel.PUBLIC.value,
+        show_email=user.show_email if user.show_email is not None else False,
+        show_phone=user.show_phone if user.show_phone is not None else False,
+        show_online_status=user.show_online_status if user.show_online_status is not None else True,
+        show_last_seen=user.show_last_seen if user.show_last_seen is not None else True
+    )
+
+@router.put("/{user_id}/privacy", response_model=PrivacySettings)
+def update_user_privacy_settings(
+    user_id: int,
+    privacy_settings: PrivacySettings,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    """更新用戶隱私設置"""
+    # 只能更新自己的隱私設置
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update privacy settings"
+        )
+    
+    user_service = UserService(db)
+    user = user_service.get_user(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # 更新隱私設置
+    user.privacy_level = privacy_settings.privacy_level
+    user.show_email = privacy_settings.show_email
+    user.show_phone = privacy_settings.show_phone
+    user.show_online_status = privacy_settings.show_online_status
+    user.show_last_seen = privacy_settings.show_last_seen
+    
+    db.commit()
+    db.refresh(user)
+    
+    return privacy_settings
+
+@router.get("/search/public")
+def search_public_users(
+    q: str,
+    pagination: PaginationParams = Depends(),
+    db: Session = Depends(get_db)
+) -> Any:
+    """搜索公開用戶（不需要登入）"""
+    user_service = UserService(db)
+    privacy_service = PrivacyService(db)
+    
+    users = user_service.search_public_users(q, pagination.skip, pagination.limit)
+    
+    # 只返回公開資料
+    result = []
+    for user in users:
+        result.append(privacy_service._get_minimal_user_data(user))
+    
+    return {
+        "items": result,
+        "total": len(result),
+        "page": pagination.page,
+        "per_page": pagination.per_page
+    }

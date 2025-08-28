@@ -1,7 +1,13 @@
 # app/models/user.py
-from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text
+from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
+import enum
+
+class PrivacyLevel(str, enum.Enum):
+    PUBLIC = "public"          # 公開 - 所有人可見完整資訊
+    FRIENDS_ONLY = "friends"   # 僅好友可見
+    PRIVATE = "private"        # 不公開 - 僅自己可見
 
 class User(BaseModel):
     __tablename__ = "users"
@@ -22,20 +28,26 @@ class User(BaseModel):
     last_password_change = Column(DateTime)
     password_reset_token = Column(String(255))
     password_reset_expires = Column(DateTime)
-    
+
+    # 隱私設置
+    privacy_level = Column(
+        SQLAlchemyEnum(PrivacyLevel, values_callable=lambda x: [e.value for e in x]),
+        default=PrivacyLevel.PUBLIC
+    )
+    show_email = Column(Boolean, default=False)
+    show_phone = Column(Boolean, default=False)
+    show_online_status = Column(Boolean, default=True)
+    show_last_seen = Column(Boolean, default=True)
     # 關聯 - 明確指定外鍵和 primaryjoin
     pets = relationship("Pet", back_populates="owner", cascade="all, delete-orphan")
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
     albums = relationship("Album", back_populates="owner", cascade="all, delete-orphan")
-    
-    # 修復 roles 關聯，明確指定 primaryjoin
     roles = relationship(
         "UserRole", 
         primaryjoin="User.id==UserRole.user_id",
         back_populates="user",
         cascade="all, delete-orphan"
     )
-    
     # 作為分配者的角色關聯
     assigned_roles = relationship(
         "UserRole",
@@ -50,7 +62,6 @@ class User(BaseModel):
         back_populates="user", 
         uselist=False
     )
-    
     # 作為驗證者的商戶
     verified_merchants = relationship(
         "Merchant",

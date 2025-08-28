@@ -1,18 +1,20 @@
 # app/api/va/endpoints/auth.py
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timedelta
+
 from app.core.database import get_db
-from app.core.security import oauth2_scheme, decode_token
+from app.core.security import oauth2_scheme, create_access_token, create_refresh_token, decode_token
 from app.core.permissions import get_current_user
-from app.services.auth_service import AuthService
-from app.services.user_service import UserService
 from app.schemas.auth import Token, LoginRequest, RefreshTokenRequest, ChangePasswordRequest, ResetPasswordRequest, ResetPasswordConfirm
 from app.schemas.user import UserCreate, UserResponse
+from app.services.auth_service import AuthService
+from app.services.user_service import UserService
+from app.services.privacy_service import PrivacyService
 from app.models.user import User
-from app.models.auth import TokenBlacklist
+from app.models.auth import TokenBlacklist, UserToken, TokenType
 
 router = APIRouter()
 
@@ -40,7 +42,9 @@ def register(
     
     # 創建用戶
     user = user_service.create_user(user_data)
-    return user
+
+    privacy_service = PrivacyService(db)
+    return privacy_service._get_full_user_data(user)
 
 @router.post("/login", response_model=Token)
 def login(
@@ -58,6 +62,12 @@ def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive"
         )
     
     # 獲取設備信息
@@ -99,10 +109,17 @@ def logout(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid token"
             )
+    except HTTPException as e:
+        # 如果是 401 錯誤（token 無效或過期），直接傳遞
+        if e.status_code == status.HTTP_401_UNAUTHORIZED:
+            raise e
+        # 其他 HTTP 異常也直接傳遞
+        raise
     except Exception as e:
+        print(f"Unexpected error during logout: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Logout failed"
+            detail="An error occurred during logout"
         )
 
 @router.post("/change-password")

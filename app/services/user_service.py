@@ -1,7 +1,8 @@
 # app/services/user_service.py
 from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
-from app.models.user import User
+from sqlalchemy import or_
+from app.models.user import User, PrivacyLevel
 from app.models.auth import UserRole, Role
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
@@ -17,6 +18,13 @@ class UserService:
             email=user_create.email,
             password_hash=get_password_hash(user_create.password),
             display_name=user_create.display_name,
+            bio=user_create.bio if hasattr(user_create, 'bio') else None,
+            phone=user_create.phone if hasattr(user_create, 'phone') else None,
+            privacy_level=user_create.privacy_level if hasattr(user_create, 'privacy_level') else PrivacyLevel.PUBLIC,
+            show_email=False,
+            show_phone=False,
+            show_online_status=True,
+            show_last_seen=True,
             is_active=True,
             is_verified=False
         )
@@ -30,6 +38,8 @@ class UserService:
             user_role = UserRole(user_id=user.id, role_id=default_role.id)
             self.db.add(user_role)
             self.db.commit()
+
+        self.db.refresh(user)
         
         return user
     
@@ -99,3 +109,15 @@ class UserService:
     def is_superuser(self, user: User) -> bool:
         """檢查用戶是否為超級用戶"""
         return any(role.role.name == "admin" for role in user.roles)
+    
+    def search_public_users(self, query: str, skip: int = 0, limit: int = 20) -> List[User]:
+        """搜索公開用戶"""
+        search = f"%{query}%"
+        return self.db.query(User).filter(
+            or_(
+                User.username.ilike(search),
+                User.display_name.ilike(search)
+            ),
+            User.privacy_level == PrivacyLevel.PUBLIC,
+            User.is_active == True
+        ).offset(skip).limit(limit).all()

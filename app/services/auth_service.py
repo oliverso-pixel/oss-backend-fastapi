@@ -157,6 +157,8 @@ class AuthService:
     
     def logout(self, token: str, user_id: int):
         """登出 - 將 token 加入黑名單"""
+        success = False
+
         try:
             # 解碼 token 以獲取 JTI 和過期時間
             payload = decode_token(token)
@@ -178,8 +180,15 @@ class AuthService:
                         reason="User logout"
                     )
                     self.db.add(blacklist_entry)
-                
+                    success = True
+                else:
+                    # Token 已經在黑名單中
+                    print(f"Token {jti} already in blacklist")
+                    success = True  # 仍然視為成功
                 print(f"Token {jti} added to blacklist for user {user_id}")
+        except HTTPException:
+            # 如果是 HTTP 異常（如 token 過期），向上傳遞
+            raise
         except Exception as e:
             print(f"Error adding token to blacklist: {str(e)}")
             # 繼續執行，不要因為黑名單失敗而阻止登出
@@ -191,16 +200,17 @@ class AuthService:
                 UserToken.revoked_at.is_(None)
             ).update({"revoked_at": datetime.utcnow()})
             
-            print(f"Revoked {revoked_count} tokens for user {user_id}")
+            print(f"Revoked {revoked_count} refresh tokens for user {user_id}")
             
             self.db.commit()
+            return True
             
         except Exception as e:
             print(f"Error during logout: {str(e)}")
             self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Logout failed"
+                detail="Failed to complete logout process"
             )
     
     def revoke_all_user_tokens(self, user_id: int, reason: str = "Password changed"):
@@ -231,24 +241,6 @@ class AuthService:
                 self.db.add(blacklist_entry)
         
         self.db.commit()
-    
-    # def change_password(self, user: User, old_password: str, new_password: str):
-    #     """修改密碼"""
-    #     if not verify_password(old_password, user.password_hash):
-    #         raise HTTPException(
-    #             status_code=status.HTTP_400_BAD_REQUEST,
-    #             detail="Incorrect password"
-    #         )
-        
-    #     # 更新密碼
-    #     user.password_hash = get_password_hash(new_password)
-    #     user.last_password_change = datetime.utcnow()
-        
-    #     # 先提交密碼更改
-    #     self.db.commit()
-        
-    #     # 然後撤銷所有 tokens
-    #     self.revoke_all_user_tokens(user.id, reason="Password changed")
 
     def change_password(self, user: User, old_password: str, new_password: str):
         """修改密碼"""

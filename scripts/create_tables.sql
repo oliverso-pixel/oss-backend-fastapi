@@ -33,11 +33,17 @@ CREATE TABLE IF NOT EXISTS `users` (
     `password_reset_expires` TIMESTAMP NULL DEFAULT NULL,
     `two_factor_enabled` BOOLEAN DEFAULT FALSE,
     `two_factor_secret` VARCHAR(255) DEFAULT NULL,
+    `privacy_level` ENUM('public', 'friends', 'private') DEFAULT 'public',
+    `show_email` BOOLEAN DEFAULT FALSE,
+    `show_phone` BOOLEAN DEFAULT FALSE AFTER show_email,
+    `show_online_status` BOOLEAN DEFAULT TRUE AFTER show_phone,
+    `show_last_seen` BOOLEAN DEFAULT TRUE,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `idx_username` (`username`),
     UNIQUE KEY `idx_email` (`email`),
+    UNIQUE KEY `idx_users_privacy_level` (`privacy_level`),
     KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
