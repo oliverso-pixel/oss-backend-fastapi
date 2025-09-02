@@ -93,9 +93,8 @@ def search_pets(
     pet_responses = []
     for pet in pets:
         response = PetResponse.model_validate(pet)
-        # 獲取擁有者用戶名
-        owner = db.query(User).filter(User.id == pet.user_id).first()
-        response.owner_username = owner.username if owner else None
+        # 直接使用預先載入的 owner 資料
+        response.owner_username = pet.owner.username if pet.owner else None
         pet_responses.append(response)
     
     return PaginatedResponse(

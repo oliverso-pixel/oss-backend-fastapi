@@ -141,7 +141,7 @@ class CompletePetSocialAPITester:
                 tokens = response.json()
                 self.access_token = tokens.get("access_token")
                 self.refresh_token = tokens.get("refresh_token")
-                self.print_result(True, "Login successful")
+                self.print_result(True, f"Login successful")
                 
                 # 保存為普通用戶 token
                 self.normal_user_token = self.access_token
@@ -213,7 +213,7 @@ class CompletePetSocialAPITester:
                 if response.status_code == 200:
                     new_tokens = response.json()
                     self.access_token = new_tokens.get("access_token")
-                    self.print_result(True, "Token refreshed")
+                    self.print_result(True, f"Token refreshed")
                 else:
                     self.print_result(False, "Token refresh failed")
             except Exception as e:
@@ -234,23 +234,8 @@ class CompletePetSocialAPITester:
                 )
                 if response.status_code == 200:
                     self.print_result(True, "Password changed")
-                    self.test_user["password"] = "NewPassword123!"
-                    
-                    # 測試舊 token 是否失效
-                    # time.sleep(1)  # 等待一秒確保處理完成
-                    # response = requests.get(f"{self.api_v1}/users/me", headers=headers)
-                    # if response.status_code == 401:
-                    #     self.print_result(
-                    #         True,
-                    #         "Old tokens invalidated after password change"
-                    #     )
-                    # else:
-                    #     self.print_result(
-                    #         False,
-                    #         f"Old tokens efficient after password change, response code: {response.status_code}"
-                    #     )
 
-                    time.sleep(2)
+                    time.sleep(1)
             
                     # 4. 測試舊 token 是否失效
                     response = requests.get(f"{self.api_v1}/users/me", headers=headers)

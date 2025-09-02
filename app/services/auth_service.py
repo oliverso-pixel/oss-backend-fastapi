@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, hash_token, decode_token
 from app.models.user import User
 from app.models.auth import UserToken, TokenType, TokenBlacklist
@@ -51,23 +52,24 @@ class AuthService:
         refresh_token = create_refresh_token(data=refresh_token_data)
         
         # 儲存 refresh token 記錄
-        token_record = UserToken(
+        refresh_token_record = UserToken(
             user_id=user.id,
             token_type=TokenType.REFRESH,
             token_hash=hash_token(refresh_token),
+            jti=refresh_jti,  # 儲存 JTI
             device_info=device_info,
-            expires_at=datetime.utcnow() + timedelta(minutes=10080)  # 7 days
+            expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
         )
-        self.db.add(token_record)
+        self.db.add(refresh_token_record)
         
-        # 儲存 access token 的 JTI（用於後續撤銷）
-        # 可以選擇儲存在 UserToken 或另一個表中
+        # 儲存 access token 記錄（包含 JTI）
         access_token_record = UserToken(
             user_id=user.id,
             token_type=TokenType.ACCESS,
-            token_hash=hash_token(access_jti),  # 儲存 JTI 的 hash
+            token_hash=hash_token(access_token),
+            jti=access_jti,  # 儲存 JTI
             device_info=device_info,
-            expires_at=datetime.utcnow() + timedelta(minutes=15)  # 15 minutes
+            expires_at=datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         self.db.add(access_token_record)
         
@@ -86,14 +88,14 @@ class AuthService:
         # 解碼 refresh token
         try:
             payload = decode_token(refresh_token)
-            jti = payload.get("jti")
+            refresh_jti = payload.get("jti")
             user_id = payload.get("sub")
-            
-            # 檢查是否在黑名單中
-            if jti and self._is_token_blacklisted(jti):
+             
+            # 檢查 refresh token 是否在黑名單中
+            if refresh_jti and self._is_token_blacklisted(refresh_jti):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has been revoked"
+                    detail="Refresh token has been revoked"
                 )
         except HTTPException:
             raise
@@ -105,53 +107,112 @@ class AuthService:
         
         # 驗證 refresh token 記錄
         token_hash = hash_token(refresh_token)
-        token_record = self.db.query(UserToken).filter(
+        refresh_token_record = self.db.query(UserToken).filter(
             UserToken.token_hash == token_hash,
             UserToken.token_type == TokenType.REFRESH,
             UserToken.expires_at > datetime.utcnow(),
             UserToken.revoked_at.is_(None)
         ).first()
         
-        if not token_record:
+        if not refresh_token_record:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token"
             )
         
         # 獲取用戶
-        user = self.db.query(User).filter(User.id == user_id).first()
+        user = self.db.query(User).filter(User.id == int(user_id)).first()
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive"
             )
         
-        # 創建新的 access token
+        # 將所有舊的 access token 的 JTI 加入黑名單
+        old_access_tokens = self.db.query(UserToken).filter(
+            UserToken.user_id == user.id,
+            UserToken.token_type == TokenType.ACCESS,
+            UserToken.expires_at > datetime.utcnow(),
+            UserToken.revoked_at.is_(None)
+        ).all()
+        
+        for old_token in old_access_tokens:
+            if old_token.jti:  # 如果有 JTI
+                # 檢查是否已在黑名單中
+                existing = self.db.query(TokenBlacklist).filter(
+                    TokenBlacklist.jti == old_token.jti
+                ).first()
+                
+                if not existing:
+                    blacklist_entry = TokenBlacklist(
+                        jti=old_token.jti,
+                        user_id=user.id,
+                        expires_at=old_token.expires_at,
+                        reason="Token refreshed"
+                    )
+                    self.db.add(blacklist_entry)
+            
+            # 標記為已撤銷
+            old_token.revoked_at = datetime.utcnow()
+        
+        # 撤銷當前的 refresh token
+        refresh_token_record.revoked_at = datetime.utcnow()
+        
+        # 如果 refresh token 有 JTI，也加入黑名單
+        if refresh_jti:
+            refresh_blacklist = TokenBlacklist(
+                jti=refresh_jti,
+                user_id=user.id,
+                expires_at=refresh_token_record.expires_at,
+                reason="Refresh token used"
+            )
+            self.db.add(refresh_blacklist)
+        
+        # 創建新的 tokens
         new_access_jti = secrets.token_urlsafe(16)
+        new_refresh_jti = secrets.token_urlsafe(16)
+        
         access_token_data = {
             "sub": str(user.id),
             "jti": new_access_jti,
             "type": "access"
         }
-        access_token = create_access_token(data=access_token_data)
+        new_access_token = create_access_token(data=access_token_data)
         
-        # 儲存新的 access token JTI
-        access_token_record = UserToken(
+        refresh_token_data = {
+            "sub": str(user.id),
+            "jti": new_refresh_jti,
+            "type": "refresh"
+        }
+        new_refresh_token = create_refresh_token(data=refresh_token_data)
+        
+        # 儲存新的 token 記錄
+        new_refresh_record = UserToken(
+            user_id=user.id,
+            token_type=TokenType.REFRESH,
+            token_hash=hash_token(new_refresh_token),
+            jti=new_refresh_jti,
+            device_info=refresh_token_record.device_info,
+            expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        )
+        self.db.add(new_refresh_record)
+        
+        new_access_record = UserToken(
             user_id=user.id,
             token_type=TokenType.ACCESS,
-            token_hash=hash_token(new_access_jti),
-            device_info=token_record.device_info,
-            expires_at=datetime.utcnow() + timedelta(minutes=15)
+            token_hash=hash_token(new_access_token),
+            jti=new_access_jti,
+            device_info=refresh_token_record.device_info,
+            expires_at=datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
-        self.db.add(access_token_record)
+        self.db.add(new_access_record)
         
-        # 更新 refresh token 使用時間
-        token_record.last_used_at = datetime.utcnow()
+        # 提交所有更改
         self.db.commit()
         
         return Token(
-            access_token=access_token,
-            refresh_token=refresh_token,  # 返回原來的 refresh token
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
             token_type="bearer"
         )
     

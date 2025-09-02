@@ -266,7 +266,7 @@ def toggle_maintenance_mode(
 
 @router.get("/export/users")
 def export_users(
-    format: str = Query("csv", regex="^(csv|xlsx)$"),
+    format: str = Query("csv", pattern="^(csv|xlsx)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(is_admin)
 ) -> Any:

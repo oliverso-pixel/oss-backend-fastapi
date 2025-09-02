@@ -22,7 +22,7 @@ class Pet(BaseModel):
     __tablename__ = "pets"
     
     id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     species = Column(
         SQLAlchemyEnum(Species, values_callable=lambda x: [e.value for e in x]), 

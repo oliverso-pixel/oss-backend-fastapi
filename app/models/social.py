@@ -1,5 +1,5 @@
 # app/models/social.py
-from sqlalchemy import Column, BigInteger, Integer, String, Text, Boolean, ForeignKey, Enum, DateTime, UniqueConstraint
+from sqlalchemy import Column, BigInteger, Integer, String, Text, Boolean, ForeignKey, Enum as SQLAlchemyEnum, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
@@ -9,35 +9,50 @@ import enum
 class FriendshipStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
+    REJECTED = "rejected"
     BLOCKED = "blocked"
 
-class Friendship(BaseModel):
+class ChatRoomType(str, enum.Enum):
+    PRIVATE = 'private'
+    GROUP = 'group'
+
+class RoleType(str, enum.Enum):
+    MEMBER = 'member'
+    ADMIN = 'admin'
+
+class Friendship(Base):
     """好友關係表"""
     __tablename__ = "friendships"
     
-    # 使用複合主鍵
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    friend_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    status = Column(Enum(FriendshipStatus), default=FriendshipStatus.PENDING)
+    id = Column(BigInteger, primary_key=True, index=True)  # 添加 ID 欄位
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    friend_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status = Column(SQLAlchemyEnum(FriendshipStatus, values_callable=lambda x: [e.value for e in x]), default=FriendshipStatus.PENDING, index=True)
+    message = Column(Text)  # 好友請求訊息
     accepted_at = Column(DateTime)
+    rejected_at = Column(DateTime)  # 拒絕時間
+    rejection_reason = Column(Text)  # 拒絕原因
+    reason = Column(Text)  # 封鎖原因（當 status = BLOCKED 時使用）
+    created_at = Column(DateTime, nullable=False, server_default=func.now()) 
     
     # 關聯
     user = relationship("User", foreign_keys=[user_id], backref="friendships_initiated")
     friend = relationship("User", foreign_keys=[friend_id], backref="friendships_received")
     
-    # 確保不能加自己為好友
+    # 唯一約束
     __table_args__ = (
         UniqueConstraint('user_id', 'friend_id', name='unique_friendship'),
     )
 
-class Follow(BaseModel):
+class Follow(Base):
     """關注關係表"""
     __tablename__ = "follows"
     
     # 使用複合主鍵
     follower_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     following_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
     # 關聯
     follower = relationship("User", foreign_keys=[follower_id], backref="following")
     following = relationship("User", foreign_keys=[following_id], backref="followers")
@@ -94,7 +109,7 @@ class ChatRoom(BaseModel):
     __tablename__ = "chat_rooms"
     
     id = Column(BigInteger, primary_key=True, index=True)
-    type = Column(Enum('private', 'group'), default='private')
+    type = Column(SQLAlchemyEnum(ChatRoomType, values_callable=lambda x: [e.value for e in x]), default='private') 
     name = Column(String(100))
     
     # 關聯
@@ -107,7 +122,7 @@ class ChatRoomMember(Base):
     
     room_id = Column(BigInteger, ForeignKey("chat_rooms.id", ondelete="CASCADE"), primary_key=True)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    role = Column(Enum('member', 'admin'), default='member')
+    role = Column(SQLAlchemyEnum(RoleType, values_callable=lambda x: [e.value for e in x]), default='member') 
     joined_at = Column(DateTime, server_default=func.now())
     last_read_at = Column(DateTime)
     

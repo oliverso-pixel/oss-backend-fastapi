@@ -1,11 +1,12 @@
 # app/api/v1/router.py
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, pets, posts, albums, media, products, merchants, orders, medical, vaccinations, notifications, admin
+from app.api.v1.endpoints import auth, users, social, pets, posts, albums, media, products, merchants, orders, medical, vaccinations, notifications, admin
 
 router = APIRouter()
 
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
 router.include_router(users.router, prefix="/users", tags=["users"])
+router.include_router(social.router, prefix="/social", tags=["social"])
 router.include_router(pets.router, prefix="/pets", tags=["pets"])
 router.include_router(posts.router, prefix="/posts", tags=["posts"])
 router.include_router(albums.router, prefix="/albums", tags=["albums"])

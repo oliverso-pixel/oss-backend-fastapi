@@ -75,6 +75,7 @@ class UserToken(BaseModel):
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token_type = Column(Enum(TokenType), nullable=False)
     token_hash = Column(String(255), nullable=False, index=True)
+    jti = Column(String(255), index=True)
     device_info = Column(JSON)
     expires_at = Column(DateTime, nullable=False, index=True)
     revoked_at = Column(DateTime)

@@ -13,8 +13,8 @@ class Post(BaseModel):
     __tablename__ = "posts"
     
     id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    pet_id = Column(BigInteger, ForeignKey("pets.id", ondelete="SET NULL"))
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    pet_id = Column(BigInteger, ForeignKey("pets.id", ondelete="SET NULL"), index=True)
     content = Column(Text)
     visibility = Column(Enum(Visibility), default=Visibility.PUBLIC)
     location = Column(String(255))

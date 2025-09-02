@@ -1,7 +1,7 @@
 # app/services/admin_service.py
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, date
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_, desc
 from app.models.user import User
 from app.models.pet import Pet
@@ -14,6 +14,7 @@ from app.schemas.admin import (
     MerchantApproval, SystemConfig
 )
 from app.core.security import get_password_hash
+from app.services.privacy_service import PrivacyService
 import secrets
 
 class AdminService:
@@ -51,10 +52,27 @@ class AdminService:
         """獲取儀表板數據"""
         stats = self.get_system_stats()
         
-        # 最近註冊的用戶
-        recent_users = self.db.query(User).order_by(
+        # 最近註冊的用戶（預先載入角色關係以提高效能）
+        recent_users = self.db.query(User).options(
+            joinedload(User.roles).joinedload(UserRole.role)
+        ).order_by(
             desc(User.created_at)
         ).limit(10).all()
+        
+        # 使用 PrivacyService 來正確轉換用戶數據
+        privacy_service = PrivacyService(self.db)
+        recent_users_data = []
+        
+        for user in recent_users:
+            try:
+                # 使用 _get_full_user_data 方法來獲取完整的用戶資料
+                # 這個方法會正確處理角色轉換
+                user_data = privacy_service._get_full_user_data(user)
+                recent_users_data.append(user_data)
+            except Exception as e:
+                # 如果轉換失敗，記錄錯誤並跳過該用戶
+                print(f"Error converting user data for user {user.id}: {str(e)}")
+                continue
         
         # 最近的活動記錄
         recent_activities = self._get_recent_activities()
@@ -67,7 +85,7 @@ class AdminService:
         
         return DashboardData(
             stats=stats,
-            recent_users=recent_users,
+            recent_users=recent_users_data,
             recent_orders=[],  # TODO: 實現最近訂單
             recent_activities=recent_activities,
             revenue_chart=revenue_chart,

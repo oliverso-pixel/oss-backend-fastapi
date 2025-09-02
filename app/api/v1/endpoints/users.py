@@ -164,7 +164,7 @@ def update_user_privacy_settings(
     
     return privacy_settings
 
-@router.get("/search/public")
+@router.get("/search/public", response_model=PaginatedResponse)
 def search_public_users(
     q: str,
     pagination: PaginationParams = Depends(),
@@ -174,16 +174,20 @@ def search_public_users(
     user_service = UserService(db)
     privacy_service = PrivacyService(db)
     
-    users = user_service.search_public_users(q, pagination.skip, pagination.limit)
+    # 調用更新後的方法，獲取用戶列表和總數
+    users, total = user_service.search_public_users(q, pagination.skip, pagination.limit)
     
     # 只返回公開資料
-    result = []
-    for user in users:
-        result.append(privacy_service._get_minimal_user_data(user))
+    result_items = [
+        privacy_service._get_minimal_user_data(user) for user in users
+    ]
     
-    return {
-        "items": result,
-        "total": len(result),
-        "page": pagination.page,
-        "per_page": pagination.per_page
-    }
+    # 使用標準化的 PaginatedResponse 返回結果
+    return PaginatedResponse(
+        items=result_items,
+        total=total,  # <-- 使用從 service 層獲取的正確總數
+        page=pagination.page,
+        per_page=pagination.per_page,
+        pages=(total + pagination.per_page - 1) // pagination.per_page
+    )
+

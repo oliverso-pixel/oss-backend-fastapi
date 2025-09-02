@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS `user_tokens` (
     `user_id` BIGINT UNSIGNED NOT NULL,
     `token_type` ENUM('ACCESS', 'REFRESH') NOT NULL,
     `token_hash` VARCHAR(255) NOT NULL,
+    `jti` VARCHAR(255) DEFAULT NULL,
     `device_info` JSON DEFAULT NULL,
     `expires_at` TIMESTAMP NOT NULL,
     `revoked_at` TIMESTAMP NULL DEFAULT NULL,
@@ -127,6 +128,7 @@ CREATE TABLE IF NOT EXISTS `user_tokens` (
     KEY `idx_user_type` (`user_id`, `token_type`),
     KEY `idx_token_hash` (`token_hash`),
     KEY `idx_expires_at` (`expires_at`),
+    KEY `idx_jti` (`jti`),
     CONSTRAINT `fk_user_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -286,12 +288,20 @@ CREATE TABLE IF NOT EXISTS `post_tags` (
 
 -- 好友關係表
 CREATE TABLE IF NOT EXISTS `friendships` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `user_id` BIGINT UNSIGNED NOT NULL,
     `friend_id` BIGINT UNSIGNED NOT NULL,
-    `status` ENUM('pending', 'accepted', 'blocked') DEFAULT 'pending',
+    `status` ENUM('pending', 'accepted', 'rejected', 'blocked') DEFAULT 'pending',
+    `message` TEXT DEFAULT NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `rejected_at` TIMESTAMP NULL DEFAULT NULL,
+    `rejection_reason` TEXT DEFAULT NULL,
+    `reason` TEXT DEFAULT NULL,
     `accepted_at` TIMESTAMP NULL DEFAULT NULL,
-    PRIMARY KEY (`user_id`, `friend_id`),
+    --PRIMARY KEY (`user_id`, `friend_id`),
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unique_user_friend` (`user_id`, `friend_id`),
     KEY `idx_friend_status` (`friend_id`, `status`),
     CONSTRAINT `fk_friendships_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_friendships_friend` FOREIGN KEY (`friend_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
@@ -302,6 +312,7 @@ CREATE TABLE IF NOT EXISTS `follows` (
     `follower_id` BIGINT UNSIGNED NOT NULL,
     `following_id` BIGINT UNSIGNED NOT NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`follower_id`, `following_id`),
     KEY `idx_following_created` (`following_id`, `created_at`),
     CONSTRAINT `fk_follows_follower` FOREIGN KEY (`follower_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
