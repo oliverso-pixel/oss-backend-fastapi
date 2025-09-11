@@ -204,17 +204,30 @@ class PetService:
             last_activity=last_activity
         )
     
-    def search_pets(self, query: str, species: Optional = None,
-                   user_id: Optional[int] = None, skip: int = 0, 
-                   limit: int = 20) -> Tuple[List[Pet], int]:
+    def search_pets(self, query: str, species: Optional[Species] = None,
+               user_id: Optional[int] = None, skip: int = 0, 
+               limit: int = 20) -> Tuple[List[Pet], int]:
         """搜索寵物"""
         search = f"%{query}%"
         q = self.db.query(Pet).options(joinedload(Pet.owner)).filter(
             Pet.is_active == True,
             Pet.name.ilike(search)
         )
-        #...
+        
+        # 如果指定了物種
+        if species:
+            q = q.filter(Pet.species == species)
+        
+        # 如果指定了用戶
+        if user_id:
+            q = q.filter(Pet.user_id == user_id)
+        
+        # 先計算總數
+        total = q.count()
+        
+        # 然後進行分頁
         pets = q.offset(skip).limit(limit).all()
+        
         return pets, total
     
     def get_pet_by_name(self, user_id: int, pet_name: str) -> Optional[Pet]:
@@ -237,3 +250,4 @@ class PetService:
         self.db.refresh(pet)
         
         return pet
+    

@@ -1,5 +1,5 @@
 # app/models/merchant.py
-from sqlalchemy import Column, BigInteger, String, Text, Boolean, ForeignKey, Enum, JSON, DECIMAL
+from sqlalchemy import Column, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Enum, JSON, DECIMAL
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 import enum
@@ -34,7 +34,7 @@ class Merchant(BaseModel):
     bank_account = Column(JSON)
     commission_rate = Column(DECIMAL(5, 2), default=10.00)
     status = Column(Enum(MerchantStatus), default=MerchantStatus.PENDING)
-    verified_at = Column(BigInteger)
+    verified_at = Column(DateTime)
     verified_by = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
     rejection_reason = Column(Text)
     rating = Column(DECIMAL(3, 2), default=0.00)
@@ -51,3 +51,4 @@ class Merchant(BaseModel):
         foreign_keys=[verified_by],
         back_populates="verified_merchants"
     )
+

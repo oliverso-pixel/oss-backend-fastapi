@@ -99,3 +99,4 @@ class VaccineType(BaseModel):
     recommended_age_weeks = Column(Integer)
     booster_interval_months = Column(Integer)
     is_core = Column(Boolean, default=True)
+

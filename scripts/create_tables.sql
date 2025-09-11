@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS `users` (
     `display_name` VARCHAR(100) DEFAULT NULL,
     `avatar_url` VARCHAR(500) DEFAULT NULL,
     `bio` TEXT DEFAULT NULL,
+    `location_latitude` DECIMAL(10, 8) DEFAULT NULL,
+    `location_longitude` DECIMAL(11, 8) DEFAULT NULL,
+    `location_address` VARCHAR(500) DEFAULT NULL,
+    `location_city` VARCHAR(100) DEFAULT NULL,
+    `location_country` VARCHAR(100) DEFAULT NULL,
+    `location_updated_at` TIMESTAMP NULL DEFAULT NULL,
     `phone` VARCHAR(20) DEFAULT NULL,
     `is_active` BOOLEAN DEFAULT TRUE,
     `is_verified` BOOLEAN DEFAULT FALSE,
@@ -35,16 +41,18 @@ CREATE TABLE IF NOT EXISTS `users` (
     `two_factor_secret` VARCHAR(255) DEFAULT NULL,
     `privacy_level` ENUM('public', 'friends', 'private') DEFAULT 'public',
     `show_email` BOOLEAN DEFAULT FALSE,
-    `show_phone` BOOLEAN DEFAULT FALSE AFTER show_email,
-    `show_online_status` BOOLEAN DEFAULT TRUE AFTER show_phone,
+    `show_phone` BOOLEAN DEFAULT FALSE,
+    `show_online_status` BOOLEAN DEFAULT TRUE,
     `show_last_seen` BOOLEAN DEFAULT TRUE,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `idx_username` (`username`),
     UNIQUE KEY `idx_email` (`email`),
-    UNIQUE KEY `idx_users_privacy_level` (`privacy_level`),
-    KEY `idx_created_at` (`created_at`)
+    KEY `idx_users_privacy_level` (`privacy_level`),
+    KEY `idx_created_at` (`created_at`),
+    KEY `idx_location` (`location_latitude`, `location_longitude`),
+    KEY `idx_location_city_country` (`location_city`, `location_country`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 角色表
@@ -166,12 +174,41 @@ CREATE TABLE IF NOT EXISTS `pets` (
     `weight` DECIMAL(5,2) DEFAULT NULL,
     `description` TEXT DEFAULT NULL,
     `avatar_url` VARCHAR(500) DEFAULT NULL,
+    `privacy_level` ENUM('public', 'friends', 'private') DEFAULT 'public',
     `is_active` BOOLEAN DEFAULT TRUE,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_user_id` (`user_id`),
+    KEY `idx_privacy_level` (`privacy_level`),
+    KEY `idx_pets_privacy_user` (`user_id`, `privacy_level`, `is_active`),
     CONSTRAINT `fk_pets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 寵物轉移記錄表
+CREATE TABLE IF NOT EXISTS `pet_transfer_history` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `pet_id` BIGINT UNSIGNED NOT NULL,
+    `from_user_id` BIGINT UNSIGNED NOT NULL,
+    `to_user_id` BIGINT UNSIGNED NOT NULL,
+    `transfer_reason` TEXT DEFAULT NULL,
+    `transfer_type` ENUM('gift', 'sale', 'adoption', 'other') DEFAULT 'other',
+    `transfer_fee` DECIMAL(10,2) DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `status` ENUM('pending', 'accepted', 'rejected', 'cancelled') DEFAULT 'pending',
+    `requested_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `responded_at` TIMESTAMP NULL DEFAULT NULL,
+    `completed_at` TIMESTAMP NULL DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_pet_id` (`pet_id`),
+    KEY `idx_from_user` (`from_user_id`),
+    KEY `idx_to_user` (`to_user_id`),
+    KEY `idx_status` (`status`),
+    CONSTRAINT `fk_pet_transfer_pet` FOREIGN KEY (`pet_id`) REFERENCES `pets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_pet_transfer_from` FOREIGN KEY (`from_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_pet_transfer_to` FOREIGN KEY (`to_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -524,15 +561,102 @@ CREATE TABLE IF NOT EXISTS `veterinary_clinics` (
     `name` VARCHAR(200) NOT NULL,
     `license_no` VARCHAR(100) DEFAULT NULL,
     `phone` VARCHAR(20) DEFAULT NULL,
+    `emergency_phone` VARCHAR(20) DEFAULT NULL,
     `email` VARCHAR(255) DEFAULT NULL,
+    `website` VARCHAR(255) DEFAULT NULL,
     `address` JSON DEFAULT NULL,
     `latitude` DECIMAL(10, 8) DEFAULT NULL,
     `longitude` DECIMAL(11, 8) DEFAULT NULL,
+    `country` VARCHAR(100) NOT NULL DEFAULT 'Hong Kong',
+    `city` VARCHAR(100) DEFAULT NULL,
+    `business_hours` JSON DEFAULT NULL COMMENT '營業時間格式: {"monday": {"open": "09:00", "close": "18:00", "is_closed": false}, ...}',
+    `is_24_hours` BOOLEAN DEFAULT FALSE,
     `is_verified` BOOLEAN DEFAULT FALSE,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    KEY `idx_location` (`latitude`, `longitude`)
+    UNIQUE KEY `idx_clinic_location_country` (`country`, `latitude`, `longitude`),
+    KEY `idx_location` (`latitude`, `longitude`),
+    KEY `idx_country_city` (`country`, `city`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 診所可治療品種表
+CREATE TABLE IF NOT EXISTS `clinic_treatable_species` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `clinic_id` BIGINT UNSIGNED NOT NULL,
+    `species` ENUM('dog', 'cat', 'bird', 'rabbit', 'hamster', 'fish', 'reptile', 'exotic', 'other') NOT NULL,
+    `specific_breeds` JSON DEFAULT NULL COMMENT '特定品種列表',
+    `notes` TEXT DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unique_clinic_species` (`clinic_id`, `species`),
+    KEY `idx_species` (`species`),
+    CONSTRAINT `fk_clinic_species_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 診所設備表（醫療儀器）
+CREATE TABLE IF NOT EXISTS `clinic_equipment` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `clinic_id` BIGINT UNSIGNED NOT NULL,
+    `equipment_type` ENUM('xray', 'ultrasound', 'mri', 'ct_scan', 'blood_test', 'urine_test', 'dental_xray', 'endoscope', 'ecg', 'surgical_laser', 'anesthesia_machine', 'other') NOT NULL,
+    `equipment_name` VARCHAR(200) NOT NULL,
+    `brand` VARCHAR(100) DEFAULT NULL,
+    `model` VARCHAR(100) DEFAULT NULL,
+    `purchase_date` DATE DEFAULT NULL,
+    `last_maintenance_date` DATE DEFAULT NULL,
+    `next_maintenance_date` DATE DEFAULT NULL,
+    `is_operational` BOOLEAN DEFAULT TRUE,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_clinic_type` (`clinic_id`, `equipment_type`),
+    KEY `idx_operational` (`is_operational`),
+    CONSTRAINT `fk_clinic_equipment_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 診所服務項目表
+CREATE TABLE IF NOT EXISTS `clinic_services` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `clinic_id` BIGINT UNSIGNED NOT NULL,
+    `service_category` ENUM('consultation', 'surgery', 'vaccination', 'grooming', 'boarding', 'emergency', 'dental', 'diagnostic', 'other') NOT NULL,
+    `service_name` VARCHAR(200) NOT NULL,
+    `description` TEXT DEFAULT NULL,
+    `price_min` DECIMAL(10,2) DEFAULT NULL,
+    `price_max` DECIMAL(10,2) DEFAULT NULL,
+    `duration_minutes` INT UNSIGNED DEFAULT NULL,
+    `is_available` BOOLEAN DEFAULT TRUE,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_clinic_category` (`clinic_id`, `service_category`),
+    KEY `idx_available` (`is_available`),
+    CONSTRAINT `fk_clinic_services_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 診所評價表
+CREATE TABLE IF NOT EXISTS `clinic_reviews` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `clinic_id` BIGINT UNSIGNED NOT NULL,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `pet_id` BIGINT UNSIGNED DEFAULT NULL,
+    `medical_record_id` BIGINT UNSIGNED DEFAULT NULL,
+    `rating` TINYINT UNSIGNED NOT NULL CHECK (`rating` >= 1 AND `rating` <= 5),
+    `service_rating` TINYINT UNSIGNED DEFAULT NULL CHECK (`service_rating` >= 1 AND `service_rating` <= 5),
+    `price_rating` TINYINT UNSIGNED DEFAULT NULL CHECK (`price_rating` >= 1 AND `price_rating` <= 5),
+    `facility_rating` TINYINT UNSIGNED DEFAULT NULL CHECK (`facility_rating` >= 1 AND `facility_rating` <= 5),
+    `comment` TEXT DEFAULT NULL,
+    `is_anonymous` BOOLEAN DEFAULT FALSE,
+    `is_verified_visit` BOOLEAN DEFAULT FALSE,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_clinic_rating` (`clinic_id`, `rating`),
+    KEY `idx_user` (`user_id`),
+    CONSTRAINT `fk_clinic_reviews_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_clinic_reviews_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_clinic_reviews_pet` FOREIGN KEY (`pet_id`) REFERENCES `pets` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_clinic_reviews_record` FOREIGN KEY (`medical_record_id`) REFERENCES `pet_medical_records` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 獸醫師表
@@ -549,6 +673,48 @@ CREATE TABLE IF NOT EXISTS `veterinarians` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `idx_license` (`license_no`),
     CONSTRAINT `fk_veterinarians_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 獸醫師當值表（支援多診所執業）
+CREATE TABLE IF NOT EXISTS `veterinarian_schedules` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `veterinarian_id` BIGINT UNSIGNED NOT NULL,
+    `clinic_id` BIGINT UNSIGNED NOT NULL,
+    `day_of_week` ENUM('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday') NOT NULL,
+    `start_time` TIME NOT NULL,
+    `end_time` TIME NOT NULL,
+    `is_active` BOOLEAN DEFAULT TRUE,
+    `effective_from` DATE DEFAULT NULL,
+    `effective_until` DATE DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `idx_vet_schedule_active` (`is_active`, `effective_from`, `effective_until`),
+    KEY `idx_vet_clinic` (`veterinarian_id`, `clinic_id`),
+    KEY `idx_clinic_day` (`clinic_id`, `day_of_week`),
+    KEY `idx_active_dates` (`is_active`, `effective_from`, `effective_until`),
+    CONSTRAINT `fk_vet_schedule_vet` FOREIGN KEY (`veterinarian_id`) REFERENCES `veterinarians` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_vet_schedule_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 獸醫師特殊排班表（假日、特殊日期）
+CREATE TABLE IF NOT EXISTS `veterinarian_special_schedules` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `veterinarian_id` BIGINT UNSIGNED NOT NULL,
+    `clinic_id` BIGINT UNSIGNED NOT NULL,
+    `schedule_date` DATE NOT NULL,
+    `start_time` TIME DEFAULT NULL,
+    `end_time` TIME DEFAULT NULL,
+    `is_holiday` BOOLEAN DEFAULT FALSE,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unique_vet_clinic_date` (`veterinarian_id`, `clinic_id`, `schedule_date`),
+    KEY `idx_date` (`schedule_date`),
+    KEY `idx_clinic_date` (`clinic_id`, `schedule_date`),
+    CONSTRAINT `fk_vet_special_vet` FOREIGN KEY (`veterinarian_id`) REFERENCES `veterinarians` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_vet_special_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 疫苗類型表
@@ -684,6 +850,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
     `is_read` BOOLEAN DEFAULT FALSE,
     `read_at` TIMESTAMP NULL DEFAULT NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_user_read_created` (`user_id`, `is_read`, `created_at`),
     KEY `idx_notifications_unread` (`user_id`, `is_read`, `created_at`),
@@ -748,86 +915,77 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
     KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 診所完整資訊視圖
+CREATE OR REPLACE VIEW `v_clinic_full_info` AS
+SELECT 
+    c.*,
+    COUNT(DISTINCT e.id) as equipment_count,
+    COUNT(DISTINCT s.id) as service_count,
+    COUNT(DISTINCT ts.species) as treatable_species_count,
+    AVG(r.rating) as average_rating,
+    COUNT(DISTINCT r.id) as review_count
+FROM `veterinary_clinics` c
+LEFT JOIN `clinic_equipment` e ON c.id = e.clinic_id AND e.is_operational = TRUE
+LEFT JOIN `clinic_services` s ON c.id = s.clinic_id AND s.is_available = TRUE
+LEFT JOIN `clinic_treatable_species` ts ON c.id = ts.clinic_id
+LEFT JOIN `clinic_reviews` r ON c.id = r.clinic_id
+GROUP BY c.id;
+
+-- 獸醫師執業診所視圖
+CREATE OR REPLACE VIEW `v_veterinarian_clinics` AS
+SELECT 
+    v.*,
+    GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') as clinic_names,
+    COUNT(DISTINCT vs.clinic_id) as clinic_count
+FROM `veterinarians` v
+LEFT JOIN `veterinarian_schedules` vs ON v.id = vs.veterinarian_id AND vs.is_active = TRUE
+LEFT JOIN `veterinary_clinics` c ON vs.clinic_id = c.id
+WHERE v.is_active = TRUE
+GROUP BY v.id;
+
 -- 重新開啟外鍵檢查
 SET FOREIGN_KEY_CHECKS = 1;
 
--- -- =============================================
--- -- 9. 插入初始數據
--- -- =============================================
+-- =============================================
+-- 6. 建立距離計算函數（用於尋找最近的診所）
+-- =============================================
 
--- -- 插入預設角色
--- INSERT INTO `roles` (`name`, `display_name`, `description`, `is_system`) VALUES
--- ('super_admin', '超級管理員', '擁有所有權限', TRUE),
--- ('admin', '管理員', '一般管理權限', TRUE),
--- ('merchant', '商戶', '可以販售商品', TRUE),
--- ('user', '一般用戶', '基本用戶權限', TRUE),
--- ('guest', '訪客', '僅可瀏覽公開內容', TRUE)
--- ON DUPLICATE KEY UPDATE `display_name` = VALUES(`display_name`);
+DROP FUNCTION IF EXISTS `calculate_distance`;
 
--- -- 插入基本權限
--- INSERT INTO `permissions` (`module`, `action`, `name`, `description`) VALUES
--- -- 用戶模組
--- ('user', 'create', 'user.create', '建立用戶'),
--- ('user', 'read', 'user.read', '查看用戶'),
--- ('user', 'update', 'user.update', '更新用戶'),
--- ('user', 'delete', 'user.delete', '刪除用戶'),
--- ('user', 'manage', 'user.manage', '管理所有用戶'),
--- -- 貼文模組
--- ('post', 'create', 'post.create', '建立貼文'),
--- ('post', 'read', 'post.read', '查看貼文'),
--- ('post', 'update', 'post.update', '更新自己的貼文'),
--- ('post', 'delete', 'post.delete', '刪除自己的貼文'),
--- ('post', 'manage', 'post.manage', '管理所有貼文'),
--- -- 商品模組
--- ('product', 'create', 'product.create', '建立商品'),
--- ('product', 'read', 'product.read', '查看商品'),
--- ('product', 'update', 'product.update', '更新商品'),
--- ('product', 'delete', 'product.delete', '刪除商品'),
--- ('product', 'manage', 'product.manage', '管理所有商品'),
--- -- 商戶模組
--- ('merchant', 'apply', 'merchant.apply', '申請成為商戶'),
--- ('merchant', 'manage', 'merchant.manage', '管理商戶'),
--- -- 醫療記錄模組
--- ('medical', 'create', 'medical.create', '建立醫療記錄'),
--- ('medical', 'read', 'medical.read', '查看自己寵物的醫療記錄'),
--- ('medical', 'update', 'medical.update', '更新醫療記錄'),
--- ('medical', 'delete', 'medical.delete', '刪除醫療記錄'),
--- ('medical', 'manage', 'medical.manage', '管理所有醫療記錄'),
--- -- 管理模組
--- ('admin', 'access', 'admin.access', '訪問管理後台'),
--- ('admin', 'manage', 'admin.manage', '所有管理權限')
--- ON DUPLICATE KEY UPDATE `description` = VALUES(`description`);
+DELIMITER //
 
--- -- 插入常見疫苗類型
--- INSERT INTO `vaccine_types` (`species`, `name`, `abbreviation`, `description`, `recommended_age_weeks`, `booster_interval_months`, `is_core`) VALUES
--- -- 狗疫苗
--- ('dog', '犬瘟熱疫苗', 'CDV', '預防犬瘟熱病毒', 6, 12, TRUE),
--- ('dog', '犬小病毒疫苗', 'CPV', '預防犬小病毒感染', 6, 12, TRUE),
--- ('dog', '犬傳染性肝炎疫苗', 'CAV', '預防犬傳染性肝炎', 6, 12, TRUE),
--- ('dog', '狂犬病疫苗', 'Rabies', '預防狂犬病', 12, 12, TRUE),
--- ('dog', '犬舍咳疫苗', 'KC', '預防犬舍咳', 8, 12, FALSE),
--- -- 貓疫苗
--- ('cat', '貓瘟疫苗', 'FPV', '預防貓瘟', 8, 12, TRUE),
--- ('cat', '貓鼻氣管炎疫苗', 'FHV', '預防貓鼻氣管炎', 8, 12, TRUE),
--- ('cat', '貓杯狀病毒疫苗', 'FCV', '預防貓杯狀病毒', 8, 12, TRUE),
--- ('cat', '狂犬病疫苗', 'Rabies', '預防狂犬病', 12, 12, TRUE),
--- ('cat', '貓白血病疫苗', 'FeLV', '預防貓白血病', 8, 12, FALSE)
--- ON DUPLICATE KEY UPDATE `description` = VALUES(`description`);
+CREATE FUNCTION `calculate_distance`(
+    lat1 DECIMAL(10,8),
+    lon1 DECIMAL(11,8),
+    lat2 DECIMAL(10,8),
+    lon2 DECIMAL(11,8)
+) RETURNS DECIMAL(10,2)
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE distance DECIMAL(10,2);
+    
+    -- Haversine formula
+    SET distance = 6371 * 2 * ASIN(SQRT(
+        POWER(SIN((lat2 - lat1) * PI() / 180 / 2), 2) +
+        COS(lat1 * PI() / 180) * COS(lat2 * PI() / 180) *
+        POWER(SIN((lon2 - lon1) * PI() / 180 / 2), 2)
+    ));
+    
+    RETURN distance;
+END//
 
--- -- 設定角色權限關聯（示例）
--- -- 超級管理員擁有所有權限
--- INSERT INTO `role_permissions` (`role_id`, `permission_id`)
--- SELECT 1, `id` FROM `permissions`
--- ON DUPLICATE KEY UPDATE `role_id` = VALUES(`role_id`);
+DELIMITER ;
 
--- -- 一般用戶的基本權限
--- INSERT INTO `role_permissions` (`role_id`, `permission_id`)
--- SELECT 4, `id` FROM `permissions` 
--- WHERE `name` IN ('user.read', 'user.update', 'post.create', 'post.read', 'post.update', 'post.delete', 'product.read', 'medical.create', 'medical.read')
--- ON DUPLICATE KEY UPDATE `role_id` = VALUES(`role_id`);
-
--- -- 商戶權限
--- INSERT INTO `role_permissions` (`role_id`, `permission_id`)
--- SELECT 3, `id` FROM `permissions` 
--- WHERE `name` IN ('user.read', 'user.update', 'post.create', 'post.read', 'post.update', 'post.delete', 'product.create', 'product.read', 'product.update', 'product.delete', 'merchant.apply', 'medical.create', 'medical.read')
--- ON DUPLICATE KEY UPDATE `role_id` = VALUES(`role_id`);
+-- 使用範例：尋找用戶附近的診所
+-- SELECT 
+--     c.*,
+--     calculate_distance(u.location_latitude, u.location_longitude, c.latitude, c.longitude) AS distance_km
+-- FROM veterinary_clinics c
+-- CROSS JOIN users u
+-- WHERE u.id = ? 
+--     AND c.country = u.location_country
+--     AND c.is_verified = TRUE
+-- HAVING distance_km <= 50
+-- ORDER BY distance_km ASC
+-- LIMIT 10;

@@ -1,5 +1,5 @@
 # app/models/social.py
-from sqlalchemy import Column, BigInteger, Integer, String, Text, Boolean, ForeignKey, Enum as SQLAlchemyEnum, DateTime, UniqueConstraint
+from sqlalchemy import Column, BigInteger, Integer, String, Text, Boolean, JSON, ForeignKey, Enum as SQLAlchemyEnum, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
@@ -155,9 +155,10 @@ class Notification(BaseModel):
     type = Column(String(50), nullable=False)
     title = Column(String(200))
     content = Column(Text)
-    data = Column(Text)  # JSON 格式的額外數據
+    data = Column(JSON)  # JSON 格式的額外數據
     is_read = Column(Boolean, default=False)
     read_at = Column(DateTime)
     
     # 關聯
     user = relationship("User", backref="notifications")
+

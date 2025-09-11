@@ -68,3 +68,4 @@ class User(BaseModel):
         primaryjoin="User.id==Merchant.verified_by",
         back_populates="verifier"
     )
+

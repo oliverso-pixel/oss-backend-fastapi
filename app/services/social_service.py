@@ -518,3 +518,4 @@ class SocialService:
         """計算平均共同好友數"""
         # 這是一個簡化的實現
         return 0
+    

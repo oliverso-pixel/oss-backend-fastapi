@@ -141,3 +141,4 @@ class UserService:
         users = query.order_by(User.username).offset(skip).limit(limit).all()
 
         return users, total
+    

@@ -32,3 +32,4 @@ class PaginatedResponse(BaseSchema):
     page: int
     per_page: int
     pages: int
+
