@@ -24,6 +24,17 @@ python scripts/init_db.py --exportsql
 python scripts/init_db.py --exportsql production_backup.sql
 # 恢復
 python scripts/init_db.py --importsql production_backup.sql
+# 列出所有資料庫物件
+python scripts/init_db.py --list-objects
+# 只刪除視圖和函數
+python scripts/init_db.py --clean-objects views functions
+# 生成完整性報告
+python scripts/init_db.py --report
+python scripts/init_db.py --report my_report.txt
+# 檢查常見問題（不修復）
+python scripts/init_db.py --check-issues
+# 修復常見問題
+python scripts/init_db.py --fix-issues
 
 
 # 運行所有測試

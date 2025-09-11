@@ -416,3 +416,4 @@ class AuthService:
             TokenBlacklist.expires_at < datetime.utcnow()
         ).delete()
         self.db.commit()
+

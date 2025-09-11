@@ -36,3 +36,7 @@ class ResetPasswordConfirm(BaseSchema):
     """確認重設密碼 Schema"""
     token: str
     new_password: str = Field(..., min_length=8, max_length=128)
+
+class TokenPayload(BaseModel):
+    sub: int  # user_id
+    exp: Optional[int] = None

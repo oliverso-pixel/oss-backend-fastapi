@@ -85,3 +85,4 @@ class AdminNotification(BaseSchema):
     type: str  # info, warning, error, success
     target_roles: Optional[List[str]] = None
     target_users: Optional[List[int]] = None
+

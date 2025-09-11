@@ -45,3 +45,4 @@ class Pet(BaseModel):
     albums = relationship("Album", back_populates="pet")
     medical_records = relationship("PetMedicalRecord", back_populates="pet")
     vaccinations = relationship("PetVaccination", back_populates="pet")
+

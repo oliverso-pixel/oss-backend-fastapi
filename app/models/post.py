@@ -30,3 +30,4 @@ class Post(BaseModel):
     tags = relationship("PostTag", back_populates="post")
     likes = relationship("Like", back_populates="post")
     comments = relationship("Comment", back_populates="post")
+

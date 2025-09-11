@@ -1,4 +1,4 @@
-# app/api/va/endpoints/auth.py
+# app/api/v1/endpoints/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -203,3 +203,4 @@ def check_token_status(
             "token_valid": False,
             "error": str(e)
         }
+

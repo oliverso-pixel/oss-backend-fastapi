@@ -6,6 +6,7 @@ from app.models.auth import (
     UserToken, TokenType, TokenBlacklist
 )
 from app.models.pet import Pet, Species, Gender
+from app.models.pet_transfer import TransferStatus, TransferType, PetTransferHistory
 from app.models.post import Post, Visibility
 from app.models.album import Album
 from app.models.media import Media, MediaType, PostMedia, AlbumMedia
@@ -31,6 +32,9 @@ __all__ = [
     
     # Pet
     "Pet", "Species", "Gender",
+
+    # pet_transfer
+    "TransferStatus", "TransferType", "PetTransferHistory",
     
     # Post & Album
     "Post", "Album", "Visibility",

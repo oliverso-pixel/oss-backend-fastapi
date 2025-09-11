@@ -1,10 +1,11 @@
 # app/api/v1/endpoints/pets.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Any, Dict
 from app.core.database import get_db
 from app.core.permissions import get_current_user
 from app.models.user import User
+from app.models.pet import Pet
 from app.schemas.pet import Species, Gender
 from app.services.pet_service import PetService
 from app.services.media_service import MediaService
@@ -72,7 +73,7 @@ def get_species_list() -> Any:
 
 @router.get("/search", response_model=PaginatedResponse)
 def search_pets(
-    q: str = Query(..., min_length=1, description="Search query"),
+    q: Optional[str] = Query(None, description="Search query"),
     species: Optional[Species] = Query(None, description="Filter by species"),
     user_id: Optional[int] = Query(None, description="Filter by user ID"),
     pagination: PaginationParams = Depends(),
@@ -81,13 +82,30 @@ def search_pets(
 ) -> Any:
     """搜索寵物"""
     pet_service = PetService(db)
-    pets, total = pet_service.search_pets(
-        query=q,
-        species=species,
-        user_id=user_id,
-        skip=pagination.skip,
-        limit=pagination.limit
-    )
+
+    if not q:
+        # 獲取所有活躍的寵物
+        query = db.query(Pet).options(joinedload(Pet.owner)).filter(
+            Pet.is_active == True
+        )
+        
+        if species:
+            query = query.filter(Pet.species == species)
+        
+        if user_id:
+            query = query.filter(Pet.user_id == user_id)
+        
+        total = query.count()
+        pets = query.offset(pagination.skip).limit(pagination.limit).all()
+    else:
+        # 使用搜索功能
+        pets, total = pet_service.search_pets(
+            query=q,
+            species=species,
+            user_id=user_id,
+            skip=pagination.skip,
+            limit=pagination.limit
+        )
     
     # 轉換為響應格式
     pet_responses = []
@@ -311,3 +329,4 @@ def get_user_pets(
         per_page=pagination.per_page,
         pages=(total + pagination.per_page - 1) // pagination.per_page
     )
+

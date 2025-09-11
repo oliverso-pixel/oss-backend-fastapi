@@ -8,8 +8,9 @@ curl -X GET http://124.244.244.26:10380/docs
 
 # 註冊新用戶
 curl -X POST http://124.244.244.26:10380/api/v1/auth/register -H "Content-Type: application/json" -d '{"username": "testuser","email": "test@example.com","password": "test123456","display_name": "test","bio": "This is a test user","phone": "+886912345678"}' | jq .
-curl -X POST http://124.244.244.26:10380/api/v1/auth/register -H "Content-Type: application/json" -d '{"username": "testuser2","email": "test2@example.com","password": "Test1234!","display_name": "test","bio": "This is a test user2","phone": "+886912345678"}' | jq .
-curl -X POST http://124.244.244.26:10380/api/v1/auth/register -H "Content-Type: application/json" -d '{"username": "testuser3","email": "test3@example.com","password": "Test1234!","display_name": "test","bio": "This is a test user3","phone": "+886912345678"}' | jq .
+curl -X POST http://124.244.244.26:10380/api/v1/auth/register -H "Content-Type: application/json" -d '{"username": "testuser2","email": "test2@example.com","password": "test123456","display_name": "test","bio": "This is a test user2","phone": "+886912345678"}' | jq .
+curl -X POST http://124.244.244.26:10380/api/v1/auth/register -H "Content-Type: application/json" -d '{"username": "testuser3","email": "test3@example.com","password": "test123456","display_name": "test","bio": "This is a test user3","phone": "+886912345678"}' | jq .
+curl -X POST http://124.244.244.26:10380/api/v1/auth/register -H "Content-Type: application/json" -d '{"username": "testuser4","email": "test3@example.com","password": "test123456","display_name": "test","bio": "This is a test user3","phone": "+886912345678"}' | jq .
 
 # 用戶登入
 curl -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=admin123456" | jq .
@@ -20,8 +21,11 @@ curl -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: app
 curl -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=test@example.com&password=Test1234\!" | jq .
 
 # 登入並保存 token
-response=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=admin123456")
-response=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=testuser&password=test123456")
+response=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=admin123456") | jq .
+response=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=testuser1&password=test123456") | jq .
+response=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=testuser2&password=test123456") | jq .
+response=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=testuser3&password=test123456") | jq .
+response=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=testuser4&password=test123456") | jq .
 
 # 提取 access_token
 ACCESS_TOKEN=$(echo $response | jq -r '.access_token')
@@ -33,6 +37,7 @@ echo "Refresh Token: $REFRESH_TOKEN"
 
 # 刷新 Token
 curl -X POST http://124.244.244.26:10380/api/v1/auth/refresh -H "Content-Type: application/json" -d "{\"refresh_token\": \"$REFRESH_TOKEN\"}" | jq .
+response=$(curl -X POST http://124.244.244.26:10380/api/v1/auth/refresh -H "Content-Type: application/json" -d "{\"refresh_token\": \"$REFRESH_TOKEN\"}")
 
 # 修改密碼
 curl -X POST http://124.244.244.26:10380/api/v1/auth/change-password -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"old_password": "Test1234!","new_password": "NewTest1234!"}' | jq .
@@ -52,22 +57,22 @@ curl -X POST http://124.244.244.26:10380/api/v1/auth/logout -H "Authorization: B
 curl -X GET http://124.244.244.26:10380/api/v1/users/me -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 默認分頁
-curl -X GET http://124.244.244.26:10380/api/v1/users/ -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET http://124.244.244.26:10380/api/v1/users/ -H "Authorization: Bearer $ACCESS_TOKEN" | jq . ## unknown effect ##
 
 # 獲取用戶列表
-curl -X GET "http://124.244.244.26:10380/api/v1/users/?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X GET "http://124.244.244.26:10380/api/v1/users/?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . ## unknown effect ##
 
 # 獲取特定用戶
-curl -X GET http://124.244.244.26:10380/api/v1/users/1 -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X GET http://124.244.244.26:10380/api/v1/users/[id] -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 更新用戶信息(當前用戶)
-curl -X PUT http://124.244.244.26:10380/api/v1/users/1 -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"display_name": "Updated Name","bio": "Updated bio","phone": "+886987654321"}'
+curl -X PUT http://124.244.244.26:10380/api/v1/users/[id] -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"display_name": "Updated Name","bio": "Updated bio","phone": "+886987654321"}' | jq .
 
 # 獲取用戶隱私設置
-curl -X GET http://124.244.244.26:10380/api/v1/users/1/privacy -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X GET http://124.244.244.26:10380/api/v1/users/[id]/privacy -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 更新用戶隱私設置
-curl -X PUT http://124.244.244.26:10380/api/v1/users/1/privacy -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"privacy_level": "private","show_email": false,"show_phone": false,"show_online_status": false,"show_last_seen": false}' | jq .
+curl -X PUT http://124.244.244.26:10380/api/v1/users/[id]/privacy -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"privacy_level": "private","show_email": false,"show_phone": false,"show_online_status": false,"show_last_seen": false}' | jq .
 
 # 搜索公開用戶（不需登入）
 curl -X GET "http://124.244.244.26:10380/api/v1/users/search/public?q=test&page=1&per_page=10" | jq .
@@ -75,10 +80,10 @@ curl -X GET "http://124.244.244.26:10380/api/v1/users/search/public?q=test&page=
 # ========== 管理員功能 ==========
 
 # 獲取儀表板數據
-curl -X GET http://124.244.244.26:10380/api/v1/admin/dashboard -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X GET "http://124.244.244.26:10380/api/v1/admin/dashboard" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 獲取系統統計
-curl -X GET http://124.244.244.26:10380/api/v1/admin/stats -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X GET "http://124.244.244.26:10380/api/v1/admin/stats" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 搜索用戶
 curl -X GET "http://124.244.244.26:10380/api/v1/admin/users?q=test" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
@@ -87,33 +92,33 @@ curl -X GET "http://124.244.244.26:10380/api/v1/admin/users?q=test" -H "Authoriz
 curl -X POST "http://124.244.244.26:10380/api/v1/admin/users/1/manage?action=deactivate&reason=test" -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 批量操作
-curl -X POST http://124.244.244.26:10380/api/v1/admin/users/bulk-action -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"user_ids": [2, 3, 4],"action": "verify","reason": "Bulk verification"}'
+curl -X POST "http://124.244.244.26:10380/api/v1/admin/users/bulk-action" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"user_ids": [2, 3, 4],"action": "verify","reason": "Bulk verification"}'
 
 # 更新用戶角色
-curl -X PUT http://124.244.244.26:10380/api/v1/admin/users/1/roles -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \-d '{"user_id": 1,"role_names": ["user", "merchant"]}'
+curl -X PUT "http://124.244.244.26:10380/api/v1/admin/users/1/roles" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \-d '{"user_id": 1,"role_names": ["user", "merchant"]}'
 
 # 獲取待審核商戶
-curl -X GET http://124.244.244.26:10380/api/v1/admin/merchants/pending -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X GET "http://124.244.244.26:10380/api/v1/admin/merchants/pending" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 審核商戶
-curl -X POST http://124.244.244.26:10380/api/v1/admin/merchants/1/review -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"merchant_id": 1,"approved": true}'
+curl -X POST "http://124.244.244.26:10380/api/v1/admin/merchants/1/review" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"merchant_id": 1,"approved": true}' | jq .
 
 # 獲取審計日誌
 curl -X GET "http://124.244.244.26:10380/api/v1/admin/audit-logs?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 發送系統通知
-curl -X POST http://124.244.244.26:10380/api/v1/admin/broadcast -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"title": "系統維護通知","message": "系統將於今晚10點進行維護","type": "warning","target_roles": ["user"]}'
+curl -X POST "http://124.244.244.26:10380/api/v1/admin/broadcast" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"title": "系統維護通知","message": "系統將於今晚10點進行維護","type": "warning","target_roles": ["user"]}' | jq .
 
 # 切換維護模式
-curl -X POST "http://124.244.244.26:10380/api/v1/admin/maintenance?enabled=true" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X POST "http://124.244.244.26:10380/api/v1/admin/maintenance?enabled=true" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 導出用戶數據
-curl -X GET "http://124.244.244.26:10380/api/v1/admin/export/users?format=csv" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/admin/export/users?format=csv" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # ========== 社交功能 ==========
 
 # 發送好友請求
-curl -X POST http://124.244.244.26:10380/api/v1/social/friends/request/2 -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"message": ""}' | jq .
+curl -X POST "http://124.244.244.26:10380/api/v1/social/friends/request/2" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"message": ""}' | jq .
 curl -X POST "http://124.244.244.26:10380/api/v1/social/friends/request/3" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . （不帶訊息）
 
 # 接受好友請求
@@ -160,7 +165,7 @@ curl -X DELETE "http://124.244.244.26:10380/api/v1/social/friends/2" -H "Authori
 
 # 封鎖用戶
 curl -X POST "http://124.244.244.26:10380/api/v1/social/block/5" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"reason": "Inappropriate behavior"}' | jq .
-curl -X POST "http://124.244.244.26:10380/api/v1/social/block/6" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X POST "http://124.244.244.26:10380/api/v1/social/block/6" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .  （不提供原因）
 
 # 獲取封鎖列表
 curl -X GET "http://124.244.244.26:10380/api/v1/social/blocked" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
@@ -174,10 +179,10 @@ curl -X DELETE "http://124.244.244.26:10380/api/v1/social/block/5" -H "Authoriza
 
 
 # 關注用戶
-curl -X POST "http://124.244.244.26:10380/api/v1/social/follow/10" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X POST "http://124.244.244.26:10380/api/v1/social/follow/[id]" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 取消關注
-curl -X DELETE "http://124.244.244.26:10380/api/v1/social/follow/10" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+curl -X DELETE "http://124.244.244.26:10380/api/v1/social/follow/[id]" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 獲取關注者列表（誰關注我）
 curl -X GET "http://124.244.244.26:10380/api/v1/social/followers" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
@@ -193,6 +198,8 @@ curl -X GET "http://124.244.244.26:10380/api/v1/social/following" -H "Authorizat
 
 # 搜索關注的人
 curl -X GET "http://124.244.244.26:10380/api/v1/social/following?search=pet" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
 
 # 獲取我的社交統計數據
 curl -X GET "http://124.244.244.26:10380/api/v1/social/statistics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
@@ -224,50 +231,54 @@ curl -X GET "http://124.244.244.26:10380/api/v1/social/relationship/15" -H "Auth
 # ========== 寵物功能 ==========
 
 # 創建狗狗
-curl -X POST http://124.244.244.26:10380/api/v1/pets -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "Max","species": "dog","breed": "Golden Retriever","gender": "male","birth_date": "2022-05-15","weight": 25.5,"description": "A friendly golden retriever who loves to play"}'
+curl -X POST "http://124.244.244.26:10380/api/v1/pets" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "Max","species": "dog","breed": "Golden Retriever","gender": "male","birth_date": "2022-05-15","weight": 25.5,"description": "A friendly golden retriever who loves to play"}' | jq . 
 # 創建貓咪
-curl -X POST http://124.244.244.26:10380/api/v1/pets -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "Luna","species": "cat","breed": "Persian","gender": "female","birth_date": "2023-01-20","weight": 4.2,"description": "A beautiful persian cat with long fur"}'
+curl -X POST "http://124.244.244.26:10380/api/v1/pets" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "Luna","species": "cat","breed": "Persian","gender": "female","birth_date": "2023-01-20","weight": 4.2,"description": "A beautiful persian cat with long fur"}' | jq . 
 # 創建鳥
-curl -X POST http://124.244.244.26:10380/api/v1/pets -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \-d '{"name": "Tweety","species": "bird","breed": "Canary","gender": "unknown","birth_date": "2024-03-10","weight": 0.025,"description": "A yellow canary that sings beautifully"}'
+curl -X POST "http://124.244.244.26:10380/api/v1/pets" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \-d '{"name": "Tweety","species": "bird","breed": "Canary","gender": "unknown","birth_date": "2024-03-10","weight": 0.025,"description": "A yellow canary that sings beautifully"}' | jq . 
 
-# 獲取所有活躍的寵物（個人）
-curl -X GET http://124.244.244.26:10380/api/v1/pets/ -H "Authorization: Bearer $ACCESS_TOKEN"
+# 獲取我的寵物列表
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 包含已刪除的寵物
-curl -X GET "http://124.244.244.26:10380/api/v1/pets/?include_inactive=true" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/?include_inactive=true" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . 
 
 # 分頁查詢
-curl -X GET "http://124.244.244.26:10380/api/v1/pets/?page=1&per_page=10" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/?page=1&per_page=10" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . 
 
-# 假設寵物 ID 為 1
-curl -X GET http://124.244.244.26:10380/api/v1/pets/1 -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/?include_inactive=false&page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獲取特定寵物詳情(假設寵物 ID 為 1)
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/1" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . 
 
 # 更新寵物體重和描述
-curl -X PUT http://124.244.244.26:10380/api/v1/pets/1 -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"weight": 26.5,"description": "A friendly golden retriever who loves swimming"}'
-
+curl -X PUT "http://124.244.244.26:10380/api/v1/pets/1" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"weight": 26.5,"description": "A friendly golden retriever who loves swimming"}' | jq .
 # 只更新單一欄位
-curl -X PUT http://124.244.244.26:10380/api/v1/pets/1 -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"breed": "Labrador Retriever"}'
+curl -X PUT "http://124.244.244.26:10380/api/v1/pets/3" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"weight": "6"}' | jq . 
+
 
 # 搜索名字包含 "Max" 的寵物
-curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=Max" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=Max" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 搜索特定物種
-curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=&species=dog" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=&species=dog" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 搜索特定用戶的寵物
-curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=&user_id=1" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=&user_id=1" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 組合搜索
-curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=Max&species=dog&page=1&per_page=10" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=Max&species=dog&page=1&per_page=10" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
 
 # 獲取寵物統計資料
-curl -X GET http://124.244.244.26:10380/api/v1/pets/1/statistics -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/1/statistics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .      ** ERROR ** 
+
 
 # 刪除寵物（軟刪除）
-curl -X DELETE http://124.244.244.26:10380/api/v1/pets/1 -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X DELETE "http://124.244.244.26:10380/api/v1/pets/4" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 恢復已刪除的寵物
-curl -X POST http://124.244.244.26:10380/api/v1/pets/1/restore -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X POST "http://124.244.244.26:10380/api/v1/pets/4/restore" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . 
 
 # 上傳圖片文件
 curl -X POST http://124.244.244.26:10380/api/v1/pets/1/avatar -H "Authorization: Bearer $ACCESS_TOKEN" -F "file=@/path/to/pet_photo.jpg"
@@ -275,14 +286,42 @@ curl -X POST http://124.244.244.26:10380/api/v1/pets/1/avatar -H "Authorization:
 curl -X POST http://124.244.244.26:10380/api/v1/pets/1/avatar -H "Authorization: Bearer $ACCESS_TOKEN" -F "file=@/home/user/Pictures/dog.jpg"
 
 # 獲取支援的物種列表
-curl -X GET http://124.244.244.26:10380/api/v1/pets/species -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/species" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . 
 
 # 獲取支援的性別列表
-curl -X GET http://124.244.244.26:10380/api/v1/pets/genders -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/genders" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . 
 
 # 獲取特定用戶的寵物列表
 獲取用戶 ID 為 2 的寵物列表
-curl -X GET http://124.244.244.26:10380/api/v1/pets/user/2 -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X GET "http://124.244.244.26:10380/api/v1/pets/user/2" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . 
+
+
+
+
+
+# 請求轉移寵物
+curl -X POST "http://124.244.244.26:10380/api/v1/pet-transfer/pets/4/transfer/request" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"to_user_id": 2,"transfer_type": "gift","transfer_reason": "搬家無法繼續照顧","transfer_fee": null,"notes": "希望新主人好好照顧"}' | jq .
+
+# 獲取收到的轉移請求
+curl -X GET "http://124.244.244.26:10380/api/v1/pet-transfer/transfer/requests/received?status=pending&page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獲取發送的轉移請求
+curl -X GET "http://124.244.244.26:10380/api/v1/pet-transfer/transfer/requests/sent?status=pending&page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 接受轉移請求
+curl -X POST "http://124.244.244.26:10380/api/v1/pet-transfer/transfer/1/accept" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 拒絕轉移請求
+curl -X POST "http://124.244.244.26:10380/api/v1/pet-transfer/transfer/1/reject?reason=無法照顧" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 取消轉移請求
+curl -X POST "http://124.244.244.26:10380/api/v1/pet-transfer/transfer/1/cancel" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獲取寵物的轉移歷史
+curl -X GET "http://124.244.244.26:10380/api/v1/pet-transfer/pets/1/transfer/history" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獲取轉移統計數據
+curl -X GET "http://124.244.244.26:10380/api/v1/pet-transfer/transfer/statistics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # ========== 貼文相關 ==========
 
@@ -345,4 +384,4 @@ curl -X GET http://124.244.244.26:10380/api/v1/posts/1/comments \
 curl -X DELETE http://124.244.244.26:10380/api/v1/comments/1 \
   -H "Authorization: Bearer $TOKEN"
 
-# ========== 貼文相關 ==========
+# ==========  ==========
