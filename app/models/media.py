@@ -45,3 +45,4 @@ class AlbumMedia(Base):
     
     album = relationship("Album", back_populates="media")
     media = relationship("Media")
+

@@ -53,8 +53,7 @@ class AdminService:
         stats = self.get_system_stats()
         
         # 最近註冊的用戶（預先載入角色關係以提高效能）
-        recent_users = self.db.query(User).options(
-            joinedload(User.roles).joinedload(UserRole.role)
+        recent_users = self.db.query(User).options(joinedload(User.roles).joinedload(UserRole.role)
         ).order_by(
             desc(User.created_at)
         ).limit(10).all()
@@ -326,3 +325,4 @@ class AdminService:
         """記錄審計日誌"""
         # TODO: 實現審計日誌記錄
         pass
+

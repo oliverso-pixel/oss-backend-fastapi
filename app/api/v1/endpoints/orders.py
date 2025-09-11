@@ -1,4 +1,4 @@
-# app/api/va/endpoints/orders.py
+# app/api/v1/endpoints/orders.py
 from fastapi import APIRouter
 
 router = APIRouter()
@@ -6,3 +6,4 @@ router = APIRouter()
 @router.get("/test")
 async def test():
     return {"message": "Auth endpoint working"}
+

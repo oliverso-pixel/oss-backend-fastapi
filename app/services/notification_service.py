@@ -94,3 +94,4 @@ class NotificationService:
             self.db.commit()
             return True
         return False
+    

@@ -2,6 +2,7 @@
 from typing import Optional, Dict, Any, List, Union
 from sqlalchemy.orm import Session
 from app.models.user import User, PrivacyLevel
+from app.models.pet import Pet
 from app.models.social import Friendship
 from app.schemas.user import UserPublicResponse, UserLimitedResponse, UserFullResponse
 from datetime import datetime, timedelta
@@ -33,6 +34,29 @@ class PrivacyService:
             roles = user.get('roles', [])
             return any(role in ['admin', 'super_admin'] for role in roles)
         return False
+    
+    # def can_view_pet(self, viewer: Optional[User], pet: Pet) -> bool:
+    #     """檢查用戶是否可以查看指定的寵物"""
+    #     if not pet or not pet.is_active:
+    #         # 如果寵物不存在或已被飼主停用，則不可見
+    #         return False
+
+    #     if viewer:
+    #         # 寵物主人和管理員永遠可以查看
+    #         if pet.user_id == viewer.id or self.is_admin(viewer):
+    #             return True
+
+    #     # 檢查寵物的隱私設定
+    #     if pet.privacy_level == PrivacyLevel.PUBLIC:
+    #         return True
+        
+    #     if pet.privacy_level == PrivacyLevel.FRIENDS:
+    #         # 只有登入且為飼主好友的用戶才能查看
+    #         if viewer and self.is_friend(viewer.id, pet.user_id):
+    #             return True
+
+    #     # 對於 PRIVATE 的寵物，或不滿足上述條件的情況，預設為不可見
+    #     return False
     
     def get_user_visible_data(
         self, 
@@ -178,3 +202,4 @@ class PrivacyService:
             visible_data = self.get_user_visible_data(viewer, user)
             result.append(visible_data)
         return result
+    

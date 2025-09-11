@@ -20,3 +20,4 @@ class Album(BaseModel):
     owner = relationship("User", back_populates="albums")
     pet = relationship("Pet", back_populates="albums")
     media = relationship("AlbumMedia", back_populates="album")
+

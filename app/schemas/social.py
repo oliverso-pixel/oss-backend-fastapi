@@ -75,3 +75,4 @@ class SocialFeed(BaseSchema):
     activities: List[SocialActivity]
     total: int
     has_more: bool
+

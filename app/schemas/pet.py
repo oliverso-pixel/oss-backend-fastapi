@@ -82,3 +82,4 @@ class PetStatistics(BaseSchema):
     total_posts: int
     total_albums: int
     last_activity: Optional[datetime]
+

@@ -445,3 +445,4 @@ def check_relationship(
         "is_blocked_by": social_service.is_blocked(user_id, current_user.id),
         "has_pending_request": social_service.has_pending_friend_request(current_user.id, user_id)
     }
+

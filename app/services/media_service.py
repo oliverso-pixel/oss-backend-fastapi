@@ -78,3 +78,4 @@ class MediaService:
         
         # 返回相對路徑
         return str(thumb_path.relative_to(self.upload_dir))
+    
