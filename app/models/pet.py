@@ -2,6 +2,7 @@
 from sqlalchemy import Column, BigInteger, String, Date, Text, Boolean, ForeignKey, Enum as SQLAlchemyEnum, DECIMAL
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
+from app.models.user import PrivacyLevel
 import enum
 
 class Species(str, enum.Enum):
@@ -38,6 +39,12 @@ class Pet(BaseModel):
     description = Column(Text)
     avatar_url = Column(String(500))
     is_active = Column(Boolean, default=True)
+
+    privacy_level = Column(
+        SQLAlchemyEnum(PrivacyLevel, values_callable=lambda x: [e.value for e in x]),
+        default=PrivacyLevel.PUBLIC,
+        nullable=False
+    )
     
     # 關聯
     owner = relationship("User", back_populates="pets")

@@ -5,9 +5,8 @@ from app.models.base import BaseModel
 import enum
 
 class PrivacyLevel(str, enum.Enum):
-    PUBLIC = "public"          # 公開 - 所有人可見完整資訊
-    FRIENDS_ONLY = "friends"   # 僅好友可見
-    PRIVATE = "private"        # 不公開 - 僅自己可見
+    PUBLIC = "public"
+    PRIVATE = "private"
 
 class User(BaseModel):
     __tablename__ = "users"
@@ -32,7 +31,8 @@ class User(BaseModel):
     # 隱私設置
     privacy_level = Column(
         SQLAlchemyEnum(PrivacyLevel, values_callable=lambda x: [e.value for e in x]),
-        default=PrivacyLevel.PUBLIC
+        default=PrivacyLevel.PUBLIC,
+        nullable=False
     )
     show_email = Column(Boolean, default=False)
     show_phone = Column(Boolean, default=False)

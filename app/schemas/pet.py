@@ -4,6 +4,7 @@ from typing import Optional, List
 from datetime import date, datetime
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.models.pet import Species, Gender
+from app.models.user import PrivacyLevel
 
 class PetBase(BaseSchema):
     """寵物基礎 Schema"""
@@ -15,6 +16,7 @@ class PetBase(BaseSchema):
     weight: Optional[float] = Field(None, ge=0, le=500)  # 0-500 公斤
     description: Optional[str] = Field(None, max_length=1000)
     avatar_url: Optional[str] = None
+    privacy_level: PrivacyLevel = Field(default=PrivacyLevel.PUBLIC, description="寵物資料的隱私等級")
     
     @field_validator('birth_date')
     def validate_birth_date(cls, v):
@@ -42,6 +44,7 @@ class PetUpdate(BaseSchema):
     description: Optional[str] = Field(None, max_length=1000)
     avatar_url: Optional[str] = None
     is_active: Optional[bool] = None
+    privacy_level: Optional[PrivacyLevel] = None
 
 class PetInDB(PetBase, TimestampSchema):
     """資料庫中的寵物 Schema"""

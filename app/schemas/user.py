@@ -2,7 +2,7 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
-from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.base import BaseSchema
 from app.models.user import PrivacyLevel
 import re
 
@@ -48,34 +48,38 @@ class UserUpdate(BaseSchema):
     show_online_status: Optional[bool] = None
     show_last_seen: Optional[bool] = None
 
-class PrivacySettings(BaseSchema):
-    """隱私設置 Schema"""
-    privacy_level: PrivacyLevel
-    show_email: bool
-    show_phone: bool
-    show_online_status: bool
-    show_last_seen: bool
-
-# 不同隱私級別的響應 Schema
-class UserPublicResponse(BaseSchema):
-    """公開資訊響應 - 最少資訊"""
+class UserPrivateProfileResponse(BaseSchema):
+    """私密個人資料回應 - 僅顯示統計數據"""
     id: int
     username: str
     display_name: Optional[str]
     avatar_url: Optional[str]
+    total_posts: int
+    total_following: int
+    total_followers: int
+    privacy_level: PrivacyLevel = PrivacyLevel.PRIVATE
+
+class UserPublicResponse(BaseSchema):
+    """公開資訊響應"""
+    id: int
+    username: str
+    display_name: Optional[str]
+    avatar_url: Optional[str]
+    bio: Optional[str]
     is_verified: bool
     created_at: datetime
+    privacy_level: PrivacyLevel = PrivacyLevel.PUBLIC
 
-class UserLimitedResponse(UserPublicResponse):
-    """有限資訊響應 - 好友可見"""
-    bio: Optional[str]
-    last_seen: Optional[datetime] = None
-    is_online: Optional[bool] = None
+# class UserLimitedResponse(UserPublicResponse):
+#     """有限資訊響應 - 好友可見"""
+#     bio: Optional[str]
+#     last_seen: Optional[datetime] = None
+#     is_online: Optional[bool] = None
     
-    class Config:
-        from_attributes = True
+#     class Config:
+#         from_attributes = True
 
-class UserFullResponse(UserLimitedResponse):
+class UserFullResponse(UserPublicResponse):
     """完整資訊響應 - 自己或管理員可見"""
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
@@ -94,6 +98,14 @@ class UserFullResponse(UserLimitedResponse):
         from_attributes = True
 
 UserResponse = UserFullResponse
+
+class PrivacySettings(BaseSchema):
+    """隱私設置 Schema"""
+    privacy_level: PrivacyLevel
+    show_email: bool
+    show_phone: bool
+    show_online_status: bool
+    show_last_seen: bool
 
 class UserWithRoles(UserResponse):
     """包含角色的用戶 Schema"""

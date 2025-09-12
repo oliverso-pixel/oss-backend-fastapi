@@ -514,6 +514,27 @@ class SocialService:
             has_more=has_more
         )
     
+    def get_user_social_stats(self, user_id: int) -> dict:
+        """獲取指定用戶的社交統計數據"""
+        total_posts = self.db.query(Post).filter(
+            Post.user_id == user_id, 
+            Post.is_deleted == False
+        ).count()
+
+        total_following = self.db.query(Follow).filter(
+            Follow.follower_id == user_id
+        ).count()
+
+        total_followers = self.db.query(Follow).filter(
+            Follow.following_id == user_id
+        ).count()
+
+        return {
+            "total_posts": total_posts,
+            "total_following": total_following,
+            "total_followers": total_followers
+        }
+
     def _calculate_average_mutual_friends(self, user_id: int) -> int:
         """計算平均共同好友數"""
         # 這是一個簡化的實現

@@ -4,11 +4,13 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Any, Dict
 from app.core.database import get_db
 from app.core.permissions import get_current_user
-from app.models.user import User
+from app.models.user import User, PrivacyLevel
+from app.models.social import Friendship, FriendshipStatus
 from app.models.pet import Pet
 from app.schemas.pet import Species, Gender
 from app.services.pet_service import PetService
 from app.services.media_service import MediaService
+from app.services.privacy_service import PrivacyService
 from app.schemas.pet import (
     PetCreate, PetUpdate, PetResponse, PetListResponse, PetStatistics
 )
@@ -83,35 +85,63 @@ def search_pets(
     """搜索寵物"""
     pet_service = PetService(db)
 
-    if not q:
-        # 獲取所有活躍的寵物
-        query = db.query(Pet).options(joinedload(Pet.owner)).filter(
-            Pet.is_active == True
-        )
+    # 基礎查詢，只查找活躍的寵物
+    query = db.query(Pet).options(joinedload(Pet.owner)).filter(Pet.is_active == True)
+
+    # 應用隱私過濾
+    # 1. public 的寵物
+    # 2. friends 的寵物，且飼主是當前用戶的好友
+    # 3. private 的寵物，但飼主是當前用戶自己
+    friend_subquery = db.query(Friendship.friend_id).filter(
+        Friendship.user_id == current_user.id,
+        Friendship.status == FriendshipStatus.ACCEPTED
+    ).subquery()
+    
+    query = query.filter(
+        (Pet.privacy_level == PrivacyLevel.PUBLIC) |
+        ((Pet.privacy_level == PrivacyLevel.FRIENDS_ONLY) & (Pet.user_id.in_(friend_subquery))) |
+        (Pet.user_id == current_user.id)
+    )
+
+    # 應用搜索條件
+    if q:
+        query = query.filter(Pet.name.ilike(f"%{q}%"))
+    if species:
+        query = query.filter(Pet.species == species)
+    if user_id:
+        query = query.filter(Pet.user_id == user_id)
+
+    total = query.count()
+    pets = query.order_by(Pet.created_at.desc()).offset(pagination.skip).limit(pagination.limit).all()
+
+    # if not q:
+    #     # 獲取所有活躍的寵物
+    #     query = db.query(Pet).options(joinedload(Pet.owner)).filter(
+    #         Pet.is_active == True
+    #     )
         
-        if species:
-            query = query.filter(Pet.species == species)
+    #     if species:
+    #         query = query.filter(Pet.species == species)
         
-        if user_id:
-            query = query.filter(Pet.user_id == user_id)
+    #     if user_id:
+    #         query = query.filter(Pet.user_id == user_id)
         
-        total = query.count()
-        pets = query.offset(pagination.skip).limit(pagination.limit).all()
-    else:
-        # 使用搜索功能
-        pets, total = pet_service.search_pets(
-            query=q,
-            species=species,
-            user_id=user_id,
-            skip=pagination.skip,
-            limit=pagination.limit
-        )
+    #     total = query.count()
+    #     pets = query.offset(pagination.skip).limit(pagination.limit).all()
+    # else:
+    #     # 使用搜索功能
+    #     pets, total = pet_service.search_pets(
+    #         query=q,
+    #         species=species,
+    #         user_id=user_id,
+    #         skip=pagination.skip,
+    #         limit=pagination.limit
+    #     )
     
     # 轉換為響應格式
     pet_responses = []
     for pet in pets:
         response = PetResponse.model_validate(pet)
-        # 直接使用預先載入的 owner 資料
         response.owner_username = pet.owner.username if pet.owner else None
         pet_responses.append(response)
     
@@ -131,6 +161,8 @@ def get_pet(
 ) -> Any:
     """獲取寵物詳情"""
     pet_service = PetService(db)
+    privacy_service = PrivacyService(db)
+
     pet = pet_service.get_pet(pet_id)
     
     if not pet:
@@ -139,15 +171,21 @@ def get_pet(
             detail="Pet not found"
         )
     
-    # 如果寵物不是公開的，只有擁有者可以查看
-    if not pet.is_active and pet.user_id != current_user.id:
+    # 使用 privacy_service 檢查權限
+    if not privacy_service.can_view_pet(current_user, pet):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view this pet"
+            detail="You don't have permission to view this pet's profile"
         )
     
+    # # 如果寵物不是公開的，只有擁有者可以查看
+    # if not pet.is_active and pet.user_id != current_user.id:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="You don't have permission to view this pet"
+    #     )
+    
     response = PetResponse.model_validate(pet)
-    # 獲取擁有者用戶名
     owner = db.query(User).filter(User.id == pet.user_id).first()
     response.owner_username = owner.username if owner else None
     
