@@ -139,11 +139,20 @@ class AuthService:
         for old_token in old_access_tokens:
             if old_token.jti:  # 如果有 JTI
                 # 檢查是否已在黑名單中
-                existing = self.db.query(TokenBlacklist).filter(
-                    TokenBlacklist.jti == old_token.jti
-                ).first()
+                # existing = self.db.query(TokenBlacklist).filter(
+                #     TokenBlacklist.jti == old_token.jti
+                # ).first()
                 
-                if not existing:
+                # if not existing:
+                #     blacklist_entry = TokenBlacklist(
+                #         jti=old_token.jti,
+                #         user_id=user.id,
+                #         expires_at=old_token.expires_at,
+                #         reason="Token refreshed"
+                #     )
+                #     self.db.add(blacklist_entry)
+
+                if not self._is_token_blacklisted(old_token.jti):
                     blacklist_entry = TokenBlacklist(
                         jti=old_token.jti,
                         user_id=user.id,
@@ -159,7 +168,16 @@ class AuthService:
         refresh_token_record.revoked_at = datetime.utcnow()
         
         # 如果 refresh token 有 JTI，也加入黑名單
-        if refresh_jti:
+        # if refresh_jti:
+        #     refresh_blacklist = TokenBlacklist(
+        #         jti=refresh_jti,
+        #         user_id=user.id,
+        #         expires_at=refresh_token_record.expires_at,
+        #         reason="Refresh token used"
+        #     )
+        #     self.db.add(refresh_blacklist)
+
+        if refresh_jti and not self._is_token_blacklisted(refresh_jti):
             refresh_blacklist = TokenBlacklist(
                 jti=refresh_jti,
                 user_id=user.id,
@@ -227,13 +245,28 @@ class AuthService:
             exp = payload.get("exp")
             
             if jti and exp:
-                # 將 token 加入黑名單
-                existing = self.db.query(TokenBlacklist).filter(
-                    TokenBlacklist.jti == jti
-                ).first()
+                # # 將 token 加入黑名單
+                # existing = self.db.query(TokenBlacklist).filter(
+                #     TokenBlacklist.jti == jti
+                # ).first()
                 
-                if not existing:
-                    # 將 token 加入黑名單
+                # if not existing:
+                #     # 將 token 加入黑名單
+                #     blacklist_entry = TokenBlacklist(
+                #         jti=jti,
+                #         user_id=user_id,
+                #         expires_at=datetime.fromtimestamp(exp),
+                #         reason="User logout"
+                #     )
+                #     self.db.add(blacklist_entry)
+                #     success = True
+                # else:
+                #     # Token 已經在黑名單中
+                #     print(f"Token {jti} already in blacklist")
+                #     success = True  # 仍然視為成功
+                # print(f"Token {jti} added to blacklist for user {user_id}")
+
+                if not self._is_token_blacklisted(jti):
                     blacklist_entry = TokenBlacklist(
                         jti=jti,
                         user_id=user_id,
@@ -241,12 +274,6 @@ class AuthService:
                         reason="User logout"
                     )
                     self.db.add(blacklist_entry)
-                    success = True
-                else:
-                    # Token 已經在黑名單中
-                    print(f"Token {jti} already in blacklist")
-                    success = True  # 仍然視為成功
-                print(f"Token {jti} added to blacklist for user {user_id}")
         except HTTPException:
             # 如果是 HTTP 異常（如 token 過期），向上傳遞
             raise
@@ -256,12 +283,20 @@ class AuthService:
         
         # 撤銷該用戶的所有 refresh tokens
         try:
-            revoked_count = self.db.query(UserToken).filter(
+            # revoked_count = self.db.query(UserToken).filter(
+            #     UserToken.user_id == user_id,
+            #     UserToken.revoked_at.is_(None)
+            # ).update({"revoked_at": datetime.utcnow()})
+            
+            # print(f"Revoked {revoked_count} refresh tokens for user {user_id}")
+            
+            # self.db.commit()
+            # return True
+
+            self.db.query(UserToken).filter(
                 UserToken.user_id == user_id,
                 UserToken.revoked_at.is_(None)
             ).update({"revoked_at": datetime.utcnow()})
-            
-            print(f"Revoked {revoked_count} refresh tokens for user {user_id}")
             
             self.db.commit()
             return True
@@ -404,11 +439,15 @@ class AuthService:
 
     def _is_token_blacklisted(self, jti: str) -> bool:
         """檢查 token 是否在黑名單中"""
-        blacklisted = self.db.query(TokenBlacklist).filter(
-            TokenBlacklist.jti == jti,
-            TokenBlacklist.expires_at > datetime.utcnow()
-        ).first()
-        return blacklisted is not None
+        # blacklisted = self.db.query(TokenBlacklist).filter(
+        #     TokenBlacklist.jti == jti,
+        #     TokenBlacklist.expires_at > datetime.utcnow()
+        # ).first()
+        # return blacklisted is not None
+
+        return self.db.query(TokenBlacklist).filter(
+            TokenBlacklist.jti == jti
+        ).first() is not None
     
     def clean_expired_blacklist(self):
         """清理過期的黑名單記錄"""

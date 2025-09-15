@@ -1,10 +1,11 @@
 # app/services/privacy_service.py
 from typing import Optional, Dict, Any, List, Union
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.user import User, PrivacyLevel
 from app.models.pet import Pet
 from app.models.social import Friendship, FriendshipStatus
 from app.schemas.user import UserPublicResponse, UserPrivateProfileResponse, UserFullResponse
+from app.schemas.pet import PetPublicResponse, PetPrivateResponse
 from app.services.social_service import SocialService
 from datetime import datetime, timedelta
 
@@ -37,38 +38,21 @@ class PrivacyService:
             return any(role in ['admin', 'super_admin'] for role in roles)
         return False
     
-    # def get_user_visible_data(
-    #     self, 
-    #     viewer: Optional[Union[User, dict]], 
-    #     target_user: User
-    # ) -> Dict[str, Any]:
-    #     """根據隱私設置獲取可見的用戶資料"""
-    #     # 獲取 viewer 的 ID
-    #     viewer_id = None
-    #     if viewer:
-    #         if isinstance(viewer, User):
-    #             viewer_id = viewer.id
-    #         elif isinstance(viewer, dict):
-    #             viewer_id = viewer.get('id')
-        
-    #     # 如果是自己，返回所有資料
-    #     if viewer_id and viewer_id == target_user.id:
-    #         return self._get_full_user_data(target_user)
-        
-    #     # 如果查看者是管理員，返回所有資料
-    #     if viewer and self.is_admin(viewer):
-    #         return self._get_full_user_data(target_user)
-        
-    #     # 根據目標用戶的隱私設置返回資料
-    #     if target_user.privacy_level == PrivacyLevel.PUBLIC:
-    #         return self._get_public_user_data(target_user, viewer)
-    #     elif target_user.privacy_level == PrivacyLevel.FRIENDS_ONLY:
-    #         if viewer_id and self.is_friend(viewer_id, target_user.id):
-    #             return self._get_limited_user_data(target_user)
-    #         else:
-    #             return self._get_minimal_user_data(target_user)
-    #     else:  # PRIVATE
-    #         return self._get_minimal_user_data(target_user)
+    def is_vet(self, user: User) -> bool:
+        """檢查用戶是否為獸醫"""
+        if isinstance(user, User):
+            # 檢查角色
+            has_role = any(role.role.name == 'veterinarian' for role in user.roles)
+            if has_role:
+                return True
+            # 也可以檢查 veterinarians 表中是否有記錄
+            # from app.models.medical import Veterinarian
+            # vet_record = self.db.query(Veterinarian).filter(Veterinarian.user_id == user.id).first()
+            # return vet_record is not None
+        elif isinstance(user, dict):
+            roles = user.get('roles', [])
+            return 'veterinarian' in roles
+        return False
 
     def get_user_visible_data(
         self, 
@@ -197,18 +181,6 @@ class PrivacyService:
         
         now = datetime.utcnow()
         return (now - user.last_login_at) < timedelta(minutes=5)
-    
-    # def filter_users_by_privacy(
-    #     self, 
-    #     users: List[User], 
-    #     viewer: Optional[Union[User, dict]]
-    # ) -> List[Dict[str, Any]]:
-    #     """根據隱私設置過濾多個用戶的資料"""
-    #     result = []
-    #     for user in users:
-    #         visible_data = self.get_user_visible_data(viewer, user)
-    #         result.append(visible_data)
-    #     return result
 
     def filter_users_by_privacy(
         self, 
@@ -221,31 +193,37 @@ class PrivacyService:
             visible_data = self.get_user_visible_data(viewer, user)
             result.append(visible_data)
         return result
-    
-    def can_view_pet(self, viewer: Optional[User], pet: Pet) -> bool:
-        """檢查用戶是否可以查看指定的寵物"""
-        # 寵物不存在或未啟用
-        if not pet or not pet.is_active:
-            # 只有主人或管理員可以查看未啟用的寵物
-            if viewer and (pet.user_id == viewer.id or self.is_admin(viewer)):
-                return True
-            return False
 
-        # 寵物主人和管理員永遠可以查看
-        if viewer and (pet.user_id == viewer.id or self.is_admin(viewer)):
-            return True
+    def get_pet_data_for_viewer(
+        self,
+        viewer: Optional[User],
+        pet: Pet
+    ) -> Union[PetPublicResponse, PetPrivateResponse, None]:
+        """根據查看者的權限，返回適當的寵物資料模型，用於列表和搜尋結果。"""
+        if not pet or not pet.owner:
+            return None
 
-        # 檢查寵物的隱私設定
+        # 如果查看者被飼主封鎖，則完全看不到該寵物
+        if viewer and self.social_service.is_blocked(pet.user_id, viewer.id):
+            return None
+
+        # 飼主或管理員總能看到完整資料
+        if viewer and (viewer.id == pet.user_id or self.is_admin(viewer)):
+            response = PetPublicResponse.model_validate(pet)
+            response.owner_username = pet.owner.username
+            return response
+
+        # 如果寵物是公開的，返回完整公開資料
         if pet.privacy_level == PrivacyLevel.PUBLIC:
-            return True
+            response = PetPublicResponse.model_validate(pet)
+            response.owner_username = pet.owner.username
+            return response
         
-        # 對於非公開的寵物，必須是登入用戶
-        if not viewer:
-            return False
+        # 如果寵物是私密的，返回部分資料
+        if pet.privacy_level == PrivacyLevel.PRIVATE:
+            response = PetPrivateResponse.model_validate(pet)
+            response.owner_username = pet.owner.username
+            return response
 
-        if pet.privacy_level == PrivacyLevel.FRIENDS_ONLY:
-            return self.is_friend(viewer.id, pet.user_id)
-
-        # 對於 PRIVATE 的寵物，或不滿足上述條件的情況，預設為不可見
-        return False
+        return None
 

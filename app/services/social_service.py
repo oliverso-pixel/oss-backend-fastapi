@@ -1,13 +1,13 @@
 # app/services/social_service.py
-from typing import List, Optional, Tuple, Dict, Any
-from datetime import datetime, timedelta
-from sqlalchemy.orm import Session, joinedload
+from typing import List, Optional, Tuple
+from sqlalchemy.orm import Session, joinedload, Query
 from sqlalchemy import or_, and_, desc, func
 from app.models.social import Friendship, FriendshipStatus, Follow, Notification
 from app.models.user import User, PrivacyLevel
 from app.models.post import Post
 from app.services.notification_service import NotificationService
 from app.schemas.social import FriendshipStatistics, SocialFeed, SocialActivity
+from datetime import datetime, timedelta
 
 class SocialService:
     def __init__(self, db: Session):
@@ -273,6 +273,13 @@ class SocialService:
             Friendship.status == FriendshipStatus.PENDING
         ).first() is not None
     
+    def get_user_blocker_ids_subquery(self, user_id: int) -> Query:
+        """獲取封鎖了指定用戶的所有用戶 ID 的子查詢"""
+        return self.db.query(Friendship.user_id).filter(
+            Friendship.friend_id == user_id,
+            Friendship.status == FriendshipStatus.BLOCKED
+        ).subquery()
+
     # ========== 關注功能 ==========
     
     def follow_user(self, follower_id: int, following_id: int) -> bool:

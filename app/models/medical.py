@@ -1,6 +1,7 @@
 # app/models/medical.py
-from sqlalchemy import Column, BigInteger, Integer, String, Date, Text, Boolean, ForeignKey, Enum as SQLEnum, JSON, DECIMAL
+from sqlalchemy import Column, BigInteger, Integer, String, Date, DateTime, Text, Boolean, ForeignKey, Enum as SQLAlchemyEnum, JSON, DECIMAL, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.models.base import BaseModel
 import enum
 
@@ -19,6 +20,12 @@ class MedicalSpecies(str, enum.Enum):
     RABBIT = "rabbit"
     OTHER = "other"
 
+class MedicalRecordPermissionStatus(str, enum.Enum):
+    PENDING = "pending"
+    GRANTED = "granted"
+    REJECTED = "rejected"
+    REVOKED = "revoked"
+
 class PetMedicalRecord(BaseModel):
     __tablename__ = "pet_medical_records"
     
@@ -27,7 +34,11 @@ class PetMedicalRecord(BaseModel):
     clinic_id = Column(BigInteger, ForeignKey("veterinary_clinics.id", ondelete="SET NULL"))
     veterinarian_id = Column(BigInteger, ForeignKey("veterinarians.id", ondelete="SET NULL"))
     visit_date = Column(Date, nullable=False)
-    visit_type = Column(SQLEnum(VisitType), nullable=False)
+    # visit_type = Column(SQLEnum(VisitType), nullable=False)
+    visit_type = Column(
+        SQLAlchemyEnum(VisitType, values_callable=lambda x: [e.value for e in x]), 
+        nullable=False
+    )
     chief_complaint = Column(Text)
     symptoms = Column(Text)
     diagnosis = Column(Text)
@@ -81,6 +92,7 @@ class Veterinarian(BaseModel):
     
     id = Column(BigInteger, primary_key=True, index=True)
     clinic_id = Column(BigInteger, ForeignKey("veterinary_clinics.id", ondelete="SET NULL"))
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), unique=True)
     name = Column(String(100), nullable=False)
     license_no = Column(String(100), unique=True)
     specialization = Column(String(200))
@@ -88,15 +100,49 @@ class Veterinarian(BaseModel):
     email = Column(String(255))
     is_active = Column(Boolean, default=True)
 
+    user = relationship("User")
+
 class VaccineType(BaseModel):
     __tablename__ = "vaccine_types"
     
     id = Column(Integer, primary_key=True, index=True)
-    species = Column(SQLEnum(MedicalSpecies), nullable=False)
+    # species = Column(SQLEnum(MedicalSpecies), nullable=False)
+    species = Column(
+        SQLAlchemyEnum(MedicalSpecies, values_callable=lambda x: [e.value for e in x]), 
+        nullable=False
+    )
     name = Column(String(100), nullable=False)
     abbreviation = Column(String(20))
     description = Column(Text)
     recommended_age_weeks = Column(Integer)
     booster_interval_months = Column(Integer)
     is_core = Column(Boolean, default=True)
+
+class MedicalRecordPermission(BaseModel):
+    """病歷存取權限表"""
+    __tablename__ = "medical_record_permissions"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    pet_id = Column(BigInteger, ForeignKey("pets.id", ondelete="CASCADE"), nullable=False)
+    veterinarian_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    owner_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # status = Column(SQLEnum(MedicalRecordPermissionStatus), default=MedicalRecordPermissionStatus.PENDING, nullable=False)
+    # requested_at = Column(SQLEnum(MedicalRecordPermissionStatus), default=func.now(), nullable=False)
+    # responded_at = Column(SQLEnum(MedicalRecordPermissionStatus))
+    status = Column(
+        SQLAlchemyEnum(MedicalRecordPermissionStatus, values_callable=lambda x: [e.value for e in x]), 
+        default=MedicalRecordPermissionStatus.PENDING,
+        nullable=False
+    )
+    requested_at = Column(DateTime, nullable=False, server_default=func.now())
+    responded_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    
+    pet = relationship("Pet")
+    veterinarian = relationship("User", foreign_keys=[veterinarian_user_id])
+    owner = relationship("User", foreign_keys=[owner_user_id])
+
+    __table_args__ = (
+        UniqueConstraint('pet_id', 'veterinarian_user_id', name='_pet_vet_uc'),
+    )
 

@@ -663,6 +663,7 @@ CREATE TABLE IF NOT EXISTS `clinic_reviews` (
 CREATE TABLE IF NOT EXISTS `veterinarians` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `clinic_id` BIGINT UNSIGNED DEFAULT NULL,
+    `user_id` BIGINT UNSIGNED NULL,
     `name` VARCHAR(100) NOT NULL,
     `license_no` VARCHAR(100) DEFAULT NULL,
     `specialization` VARCHAR(200) DEFAULT NULL,
@@ -672,7 +673,26 @@ CREATE TABLE IF NOT EXISTS `veterinarians` (
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `idx_license` (`license_no`),
-    CONSTRAINT `fk_veterinarians_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_veterinarians_clinic` FOREIGN KEY (`clinic_id`) REFERENCES `veterinary_clinics` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_veterinarians_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 獸醫的存取權限請求與狀態
+CREATE TABLE IF NOT EXISTS `medical_record_permissions` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `pet_id` BIGINT UNSIGNED NOT NULL,
+    `veterinarian_user_id` BIGINT UNSIGNED NOT NULL COMMENT '請求存取權限的獸醫用戶ID',
+    `owner_user_id` BIGINT UNSIGNED NOT NULL COMMENT '寵物擁有者的用戶ID',
+    `status` ENUM('pending', 'granted', 'rejected', 'revoked') NOT NULL DEFAULT 'pending',
+    `requested_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `responded_at` TIMESTAMP NULL DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    CONSTRAINT `fk_mrp_pet` FOREIGN KEY (`pet_id`) REFERENCES `pets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_mrp_vet` FOREIGN KEY (`veterinarian_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_mrp_owner` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    UNIQUE KEY `_pet_vet_uc` (`pet_id`, `veterinarian_user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 獸醫師當值表（支援多診所執業）
