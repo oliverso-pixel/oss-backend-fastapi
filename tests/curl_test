@@ -385,3 +385,39 @@ curl -X DELETE http://124.244.244.26:10380/api/v1/comments/1 \
   -H "Authorization: Bearer $TOKEN"
 
 # ==========  ==========
+
+VET_RESPONSE=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=testuser4&password=test123456") | jq .
+VET_TOKEN=(echo $VET_RESPONSE | jq -r '.access_token')
+VET_REFRESH=
+
+# 飼主新增病歷
+curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/records" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{ "pet_id": '3', "visit_date": "2025-09-15", "visit_type": "routine_checkup", "chief_complaint": "年度健康檢查", "diagnosis": "一切正常", "weight": 25.5, "clinic_id": '1'}' | jq .
+# 飼主新增疫苗記錄
+curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/records" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{ "pet_id": '3', "visit_date": "2025-09-16", "visit_type": "vaccination", "chief_complaint": "年度疫苗接種", "diagnosis": "寵物健康狀況良好，完成年度疫苗接種。", "weight": 28.6, "clinic_id": '1', "vaccinations": [{"vaccine_type_id": '8',"vaccination_date": "2025-09-16","next_due_date": "2026-09-16","batch_number": "V-123-456"}]}' | jq .
+curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/records" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{ "pet_id": '3', "visit_date": "2025-09-16", "visit_type": "vaccination", "chief_complaint": "年度疫苗接種", "diagnosis": "寵物健康狀況良好，完成年度疫苗接種。", "weight": 28.6, "clinic_id": '1', "vaccinations": [{"vaccine_type_id": '8',"vaccination_date": "2025-09-16","next_due_date": "2026-09-16","batch_number": "V-123-456"}, {"vaccine_type_id": '9',"vaccination_date": "2025-09-16","next_due_date": "2026-09-16","batch_number": "R-789-ABC"}]}' | jq .
+
+# 查看疫苗記錄
+curl -s -X GET "http://124.244.244.26:10380/api/v1/medical/pets/3/vaccinations" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 查看病歷
+curl -s -X GET "http://124.244.244.26:10380/api/v1/medical/pets/3/records" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 請求權限
+curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/pets/3/request-access" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獸醫發送存取請求
+curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/pets/3/request-access" -H "Authorization: Bearer $VET_TOKEN" | jq .
+
+# 飼主查看待病歷存取處理的請求
+curl -s -X GET "http://124.244.244.26:10380/api/v1/medical/access-requests/pending" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 飼主批准病歷存取請求
+curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/access-requests/1/approve" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 飼主拒絕病歷存取請求
+curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/access-requests/1/approve" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 診所例表
+curl -s -X GET "http://124.244.244.26:10380/api/v1/medical/clinics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+

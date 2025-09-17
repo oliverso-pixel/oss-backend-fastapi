@@ -3,6 +3,7 @@ from sqlalchemy import Column, BigInteger, Integer, String, Date, DateTime, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.models.base import BaseModel
+from app.core.database import Base
 import enum
 
 class VisitType(str, enum.Enum):
@@ -34,7 +35,6 @@ class PetMedicalRecord(BaseModel):
     clinic_id = Column(BigInteger, ForeignKey("veterinary_clinics.id", ondelete="SET NULL"))
     veterinarian_id = Column(BigInteger, ForeignKey("veterinarians.id", ondelete="SET NULL"))
     visit_date = Column(Date, nullable=False)
-    # visit_type = Column(SQLEnum(VisitType), nullable=False)
     visit_type = Column(
         SQLAlchemyEnum(VisitType, values_callable=lambda x: [e.value for e in x]), 
         nullable=False
@@ -54,6 +54,8 @@ class PetMedicalRecord(BaseModel):
     created_by = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     
     pet = relationship("Pet", back_populates="medical_records")
+    clinic = relationship("VeterinaryClinic")
+    vaccinations = relationship("PetVaccination", back_populates="medical_record")
 
 class PetVaccination(BaseModel):
     __tablename__ = "pet_vaccinations"
@@ -73,6 +75,8 @@ class PetVaccination(BaseModel):
     created_by = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     
     pet = relationship("Pet", back_populates="vaccinations")
+    medical_record = relationship("PetMedicalRecord", back_populates="vaccinations")
+    vaccine_type = relationship("VaccineType")
 
 class VeterinaryClinic(BaseModel):
     __tablename__ = "veterinary_clinics"
@@ -102,11 +106,11 @@ class Veterinarian(BaseModel):
 
     user = relationship("User")
 
-class VaccineType(BaseModel):
+class VaccineType(Base):
     __tablename__ = "vaccine_types"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True, index=True)
-    # species = Column(SQLEnum(MedicalSpecies), nullable=False)
     species = Column(
         SQLAlchemyEnum(MedicalSpecies, values_callable=lambda x: [e.value for e in x]), 
         nullable=False
@@ -117,6 +121,7 @@ class VaccineType(BaseModel):
     recommended_age_weeks = Column(Integer)
     booster_interval_months = Column(Integer)
     is_core = Column(Boolean, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
 
 class MedicalRecordPermission(BaseModel):
     """病歷存取權限表"""
@@ -126,17 +131,14 @@ class MedicalRecordPermission(BaseModel):
     pet_id = Column(BigInteger, ForeignKey("pets.id", ondelete="CASCADE"), nullable=False)
     veterinarian_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     owner_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    # status = Column(SQLEnum(MedicalRecordPermissionStatus), default=MedicalRecordPermissionStatus.PENDING, nullable=False)
-    # requested_at = Column(SQLEnum(MedicalRecordPermissionStatus), default=func.now(), nullable=False)
-    # responded_at = Column(SQLEnum(MedicalRecordPermissionStatus))
     status = Column(
         SQLAlchemyEnum(MedicalRecordPermissionStatus, values_callable=lambda x: [e.value for e in x]), 
         default=MedicalRecordPermissionStatus.PENDING,
         nullable=False
     )
-    requested_at = Column(DateTime, nullable=False, server_default=func.now())
+    requested_at = Column(DateTime, server_default=func.now(), nullable=False)
     responded_at = Column(DateTime)
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    # created_at = Column(DateTime, nullable=False, server_default=func.now())
     
     pet = relationship("Pet")
     veterinarian = relationship("User", foreign_keys=[veterinarian_user_id])

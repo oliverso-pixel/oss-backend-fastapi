@@ -5,8 +5,11 @@ from sqlalchemy import func
 from fastapi import HTTPException, status
 from app.models.user import User
 from app.models.pet import Pet
-from app.models.medical import PetMedicalRecord, PetVaccination, MedicalRecordPermission, Veterinarian, MedicalRecordPermissionStatus
-from app.schemas.medical import PetMedicalRecordCreate, PetMedicalRecordUpdate, PetVaccinationCreate, PetVaccinationUpdate
+from app.models.medical import (
+    PetMedicalRecord, PetVaccination, MedicalRecordPermission, 
+    Veterinarian, MedicalRecordPermissionStatus, VeterinaryClinic, VaccineType, MedicalSpecies
+)
+from app.schemas.medical import MedicalRecordCreate
 from app.services.privacy_service import PrivacyService
 from app.services.notification_service import NotificationService
 
@@ -39,40 +42,110 @@ class MedicalService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to access these medical records.")
             
         return pet
-
-    # --- Medical Records ---
-    def create_medical_record(self, user: User, record_data: PetMedicalRecordCreate) -> PetMedicalRecord:
+    
+    # --- Medical Records & Vaccinations ---
+    def create_medical_record_with_vaccinations(self, user: User, record_data: MedicalRecordCreate) -> PetMedicalRecord:
+        """一同創建病歷和疫苗記錄"""
         pet = self._check_permission(user, record_data.pet_id)
         
         new_record = PetMedicalRecord(
-            **record_data.model_dump(),
+            pet_id=record_data.pet_id,
+            visit_date=record_data.visit_date,
+            visit_type=record_data.visit_type,
+            chief_complaint=record_data.chief_complaint,
+            diagnosis=record_data.diagnosis,
+            treatment=record_data.treatment,
+            weight=record_data.weight,
+            temperature=record_data.temperature,
+            notes=record_data.notes,
+            clinic_id=record_data.clinic_id,
             created_by=user.id
         )
         self.db.add(new_record)
+        self.db.flush()
+
+        if record_data.vaccinations:
+            vaccinations_to_add = [
+                PetVaccination(
+                    pet_id=pet.id,
+                    medical_record_id=new_record.id,
+                    created_by=user.id,
+                    **vax_data.model_dump()
+                ) for vax_data in record_data.vaccinations
+            ]
+            self.db.add_all(vaccinations_to_add)
+
         self.db.commit()
         self.db.refresh(new_record)
         return new_record
 
     def get_medical_records(self, user: User, pet_id: int) -> List[PetMedicalRecord]:
-        pet = self._check_permission(user, pet_id)
-        return self.db.query(PetMedicalRecord).filter(PetMedicalRecord.pet_id == pet_id).order_by(PetMedicalRecord.visit_date.desc()).all()
-
-    # --- Vaccinations ---
-    def create_vaccination_record(self, user: User, vaccination_data: PetVaccinationCreate) -> PetVaccination:
-        pet = self._check_permission(user, vaccination_data.pet_id)
-        
-        new_vaccination = PetVaccination(
-            **vaccination_data.model_dump(),
-            created_by=user.id
-        )
-        self.db.add(new_vaccination)
-        self.db.commit()
-        self.db.refresh(new_vaccination)
-        return new_vaccination
+        self._check_permission(user, pet_id)
+        return self.db.query(PetMedicalRecord).options(
+            joinedload(PetMedicalRecord.vaccinations).joinedload(PetVaccination.vaccine_type),
+            joinedload(PetMedicalRecord.clinic)
+        ).filter(PetMedicalRecord.pet_id == pet_id).order_by(PetMedicalRecord.visit_date.desc()).all()
 
     def get_vaccination_records(self, user: User, pet_id: int) -> List[PetVaccination]:
-        pet = self._check_permission(user, pet_id)
-        return self.db.query(PetVaccination).filter(PetVaccination.pet_id == pet_id).order_by(PetVaccination.vaccination_date.desc()).all()
+        """獲取寵物的疫苗接種記錄 (針卡)"""
+        self._check_permission(user, pet_id)
+        return self.db.query(PetVaccination).options(
+            joinedload(PetVaccination.vaccine_type)
+        ).filter(
+            PetVaccination.pet_id == pet_id
+        ).order_by(PetVaccination.vaccination_date.desc()).all()
+    
+    # --- Clinics & Vaccine Types ---
+    def list_clinics(self, search: Optional[str] = None, skip: int = 0, limit: int = 100) -> Tuple[List[VeterinaryClinic], int]:
+        """列出或搜尋獸醫診所"""
+        query = self.db.query(VeterinaryClinic).filter(VeterinaryClinic.is_verified == True)
+        if search:
+            query = query.filter(VeterinaryClinic.name.ilike(f"%{search}%"))
+        
+        total = query.count()
+        clinics = query.order_by(VeterinaryClinic.name).offset(skip).limit(limit).all()
+        return clinics, total
+
+    def list_vaccine_types(self, species: Optional[MedicalSpecies] = None) -> List[VaccineType]:
+        """列出所有疫苗類型，可依物種篩選"""
+        query = self.db.query(VaccineType)
+        if species:
+            query = query.filter(VaccineType.species == species)
+        return query.order_by(VaccineType.species, VaccineType.name).all()
+
+    # --- Medical Records ---
+    # def create_medical_record(self, user: User, record_data: PetMedicalRecordCreate) -> PetMedicalRecord:
+    #     pet = self._check_permission(user, record_data.pet_id)
+        
+    #     new_record = PetMedicalRecord(
+    #         **record_data.model_dump(),
+    #         created_by=user.id
+    #     )
+    #     self.db.add(new_record)
+    #     self.db.commit()
+    #     self.db.refresh(new_record)
+    #     return new_record
+
+    # def get_medical_records(self, user: User, pet_id: int) -> List[PetMedicalRecord]:
+    #     pet = self._check_permission(user, pet_id)
+    #     return self.db.query(PetMedicalRecord).filter(PetMedicalRecord.pet_id == pet_id).order_by(PetMedicalRecord.visit_date.desc()).all()
+
+    # --- Vaccinations ---
+    # def create_vaccination_record(self, user: User, vaccination_data: PetVaccinationCreate) -> PetVaccination:
+    #     pet = self._check_permission(user, vaccination_data.pet_id)
+        
+    #     new_vaccination = PetVaccination(
+    #         **vaccination_data.model_dump(),
+    #         created_by=user.id
+    #     )
+    #     self.db.add(new_vaccination)
+    #     self.db.commit()
+    #     self.db.refresh(new_vaccination)
+    #     return new_vaccination
+
+    # def get_vaccination_records(self, user: User, pet_id: int) -> List[PetVaccination]:
+    #     pet = self._check_permission(user, pet_id)
+    #     return self.db.query(PetVaccination).filter(PetVaccination.pet_id == pet_id).order_by(PetVaccination.vaccination_date.desc()).all()
 
     # --- Access Request Logic ---
     def request_medical_access(self, vet_user: User, pet_id: int) -> MedicalRecordPermission:
@@ -140,3 +213,4 @@ class MedicalService:
         self.db.commit()
         # TODO: Notify the veterinarian of the outcome
         return request
+    
