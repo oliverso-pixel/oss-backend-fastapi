@@ -78,62 +78,6 @@ def get_species_list() -> Any:
         for species in Species
     ]
 
-# @router.get("/search", response_model=PaginatedResponse)
-# def search_pets(
-#     q: Optional[str] = Query(None, description="Search query"),
-#     species: Optional[Species] = Query(None, description="Filter by species"),
-#     user_id: Optional[int] = Query(None, description="Filter by user ID"),
-#     pagination: PaginationParams = Depends(),
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ) -> Any:
-#     """搜索寵物"""
-#     pet_service = PetService(db)
-
-#     # 基礎查詢，只查找活躍的寵物
-#     query = db.query(Pet).options(joinedload(Pet.owner)).filter(Pet.is_active == True)
-
-#     # 應用隱私過濾
-#     # 1. public 的寵物
-#     # 2. friends 的寵物，且飼主是當前用戶的好友
-#     # 3. private 的寵物，但飼主是當前用戶自己
-#     friend_subquery = db.query(Friendship.friend_id).filter(
-#         Friendship.user_id == current_user.id,
-#         Friendship.status == FriendshipStatus.ACCEPTED
-#     ).subquery()
-    
-#     query = query.filter(
-#         (Pet.privacy_level == PrivacyLevel.PUBLIC) |
-#         # ((Pet.privacy_level == PrivacyLevel.FRIENDS_ONLY) & (Pet.user_id.in_(friend_subquery))) |
-#         (Pet.user_id == current_user.id)
-#     )
-
-#     # 應用搜索條件
-#     if q:
-#         query = query.filter(Pet.name.ilike(f"%{q}%"))
-#     if species:
-#         query = query.filter(Pet.species == species)
-#     if user_id:
-#         query = query.filter(Pet.user_id == user_id)
-
-#     total = query.count()
-#     pets = query.order_by(Pet.created_at.desc()).offset(pagination.skip).limit(pagination.limit).all()
-    
-#     # 轉換為響應格式
-#     pet_responses = []
-#     for pet in pets:
-#         response = PetResponse.model_validate(pet)
-#         response.owner_username = pet.owner.username if pet.owner else None
-#         pet_responses.append(response)
-    
-#     return PaginatedResponse(
-#         items=pet_responses,
-#         total=total,
-#         page=pagination.page,
-#         per_page=pagination.per_page,
-#         pages=(total + pagination.per_page - 1) // pagination.per_page
-#     )
-
 @router.get("/search", response_model=PaginatedResponse)
 def search_pets(
     q: Optional[str] = Query(None, description="Search query"),
@@ -177,44 +121,6 @@ def search_pets(
         per_page=pagination.per_page,
         pages=(total + pagination.per_page - 1) // pagination.per_page
     )
-
-# @router.get("/{pet_id}", response_model=PetResponse)
-# def get_pet(
-#     pet_id: int,
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ) -> Any:
-#     """獲取寵物詳情"""
-#     pet_service = PetService(db)
-#     privacy_service = PrivacyService(db)
-
-#     pet = pet_service.get_pet(pet_id)
-    
-#     if not pet:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Pet not found"
-#         )
-    
-#     # 使用 privacy_service 檢查權限
-#     if not privacy_service.can_view_pet(current_user, pet):
-#         raise HTTPException(
-#             status_code=status.HTTP_403_FORBIDDEN,
-#             detail="You don't have permission to view this pet's profile"
-#         )
-    
-#     # # 如果寵物不是公開的，只有擁有者可以查看
-#     # if not pet.is_active and pet.user_id != current_user.id:
-#     #     raise HTTPException(
-#     #         status_code=status.HTTP_403_FORBIDDEN,
-#     #         detail="You don't have permission to view this pet"
-#     #     )
-    
-#     response = PetResponse.model_validate(pet)
-#     owner = db.query(User).filter(User.id == pet.user_id).first()
-#     response.owner_username = owner.username if owner else None
-    
-#     return response
 
 @router.get("/{pet_id}", response_model=Union[PetPublicResponse, PetPrivateResponse])
 def get_pet(

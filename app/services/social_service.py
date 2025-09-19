@@ -1,13 +1,13 @@
 # app/services/social_service.py
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, joinedload, Query
-from sqlalchemy import or_, and_, desc, func
+from sqlalchemy import or_, and_, desc, func, select
 from app.models.social import Friendship, FriendshipStatus, Follow, Notification
 from app.models.user import User, PrivacyLevel
 from app.models.post import Post
 from app.services.notification_service import NotificationService
 from app.schemas.social import FriendshipStatistics, SocialFeed, SocialActivity
-from datetime import datetime, timedelta
 
 class SocialService:
     def __init__(self, db: Session):
@@ -324,7 +324,7 @@ class SocialService:
     
     def get_followers(self, user_id: int, search: str = None,
                      skip: int = 0, limit: int = 20) -> Tuple[List[Follow], int]:
-        """獲取關注者列表"""
+        """獲取指定用戶的關注者列表"""
         query = self.db.query(Follow).options(
             joinedload(Follow.follower)
         ).filter(
@@ -347,7 +347,7 @@ class SocialService:
     
     def get_following(self, user_id: int, search: str = None,
                      skip: int = 0, limit: int = 20) -> Tuple[List[Follow], int]:
-        """獲取關注列表"""
+        """獲取指定用戶的關注列表"""
         query = self.db.query(Follow).options(
             joinedload(Follow.following)
         ).filter(
@@ -523,24 +523,44 @@ class SocialService:
     
     def get_user_social_stats(self, user_id: int) -> dict:
         """獲取指定用戶的社交統計數據"""
-        total_posts = self.db.query(Post).filter(
+        total_posts = self.db.query(func.count(Post.id)).filter(
             Post.user_id == user_id, 
             Post.is_deleted == False
-        ).count()
+        ).scalar()
 
-        total_following = self.db.query(Follow).filter(
+        total_following = self.db.query(func.count(Follow.follower_id)).filter(
             Follow.follower_id == user_id
-        ).count()
+        ).scalar()
 
-        total_followers = self.db.query(Follow).filter(
+        total_followers = self.db.query(func.count(Follow.following_id)).filter(
             Follow.following_id == user_id
-        ).count()
+        ).scalar()
 
         return {
-            "total_posts": total_posts,
-            "total_following": total_following,
-            "total_followers": total_followers
+            "total_posts": total_posts or 0,
+            "total_following": total_following or 0,
+            "total_followers": total_followers or 0
         }
+    
+    def get_mutual_friends_count(self, user1_id: int, user2_id: int) -> int:
+        """計算兩個用戶之間的共同好友數量"""
+        if user1_id == user2_id:
+            return 0
+            
+        # 獲取 user1 的好友 ID 集合
+        user1_friends = select(Friendship.friend_id).where(
+            Friendship.user_id == user1_id,
+            Friendship.status == FriendshipStatus.ACCEPTED
+        )
+        
+        # 計算 user2 的好友中有多少也在 user1 的好友列表中
+        count = self.db.query(func.count(Friendship.friend_id)).where(
+            Friendship.user_id == user2_id,
+            Friendship.status == FriendshipStatus.ACCEPTED,
+            Friendship.friend_id.in_(user1_friends)
+        ).scalar()
+        
+        return count or 0
 
     def _calculate_average_mutual_friends(self, user_id: int) -> int:
         """計算平均共同好友數"""

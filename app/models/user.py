@@ -1,5 +1,5 @@
 # app/models/user.py
-from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text, Enum as SQLAlchemyEnum
+from sqlalchemy import Column, BigInteger, String, Boolean, Date, DateTime, Text, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 import enum
@@ -17,7 +17,9 @@ class User(BaseModel):
     password_hash = Column(String(255), nullable=False)
     display_name = Column(String(100))
     avatar_url = Column(String(500))
+    background_image_url = Column(String(500))
     bio = Column(Text)
+    birth_date = Column(Date)
     phone = Column(String(20))
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)

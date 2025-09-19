@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.schemas.user import UserPublicResponse
+from app.schemas.user import UserPublicProfile
 from app.models.social import FriendshipStatus
 
 class FriendshipBase(BaseSchema):
@@ -16,8 +16,8 @@ class FriendshipResponse(FriendshipBase, TimestampSchema):
     """好友關係響應"""
     id: int
     accepted_at: Optional[datetime] = None
-    user: Optional[UserPublicResponse] = None
-    friend: Optional[UserPublicResponse] = None
+    user: Optional[UserPublicProfile] = None
+    friend: Optional[UserPublicProfile] = None
 
 class FriendRequestResponse(BaseSchema):
     """好友請求響應"""
@@ -40,8 +40,8 @@ class FollowBase(BaseSchema):
 
 class FollowResponse(FollowBase, TimestampSchema):
     """關注響應"""
-    follower: Optional[UserPublicResponse] = None
-    following: Optional[UserPublicResponse] = None
+    follower: Optional[UserPublicProfile] = None
+    following: Optional[UserPublicProfile] = None
 
 class BlockedUserResponse(BaseSchema):
     """封鎖用戶響應"""

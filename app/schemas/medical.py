@@ -4,7 +4,7 @@ from typing import Optional, List
 from datetime import date, datetime
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.models.medical import VisitType, MedicalRecordPermissionStatus, MedicalSpecies
-from app.schemas.user import UserPublicResponse
+from app.schemas.user import UserPublicProfile
 from app.schemas.pet import PetResponse
 
 # --- 診所 Schemas ---
@@ -83,7 +83,7 @@ class MedicalRecordResponse(MedicalRecordBase, TimestampSchema):
 class AccessRequestResponse(TimestampSchema):
     id: int
     pet: PetResponse
-    veterinarian: UserPublicResponse
+    veterinarian: UserPublicProfile
     status: MedicalRecordPermissionStatus
     requested_at: datetime
     responded_at: Optional[datetime] = None

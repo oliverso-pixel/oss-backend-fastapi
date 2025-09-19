@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.schemas.user import UserPublicResponse
+from app.schemas.user import UserPublicProfile
 from app.schemas.pet import PetResponse
 
 class TransferStatus(str, Enum):
@@ -50,8 +50,8 @@ class PetTransferResponse(TimestampSchema):  # 只繼承 TimestampSchema
     
     # 關聯資料
     pet: Optional[PetResponse] = None
-    from_user: Optional[UserPublicResponse] = None
-    to_user: Optional[UserPublicResponse] = None
+    from_user: Optional[UserPublicProfile] = None
+    to_user: Optional[UserPublicProfile] = None
 
     class Config:
         from_attributes = True
@@ -60,8 +60,8 @@ class PetTransferHistoryResponse(BaseSchema):  # 只繼承 BaseSchema
     """寵物轉移歷史記錄"""
     id: int
     pet_id: int
-    from_user: UserPublicResponse
-    to_user: UserPublicResponse
+    from_user: UserPublicProfile
+    to_user: UserPublicProfile
     transfer_type: TransferType
     transfer_reason: Optional[str]
     transfer_fee: Optional[Decimal]

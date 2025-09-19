@@ -1,7 +1,7 @@
 # app/schemas/user.py
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List
-from datetime import datetime
+from datetime import date, datetime
 from app.schemas.base import BaseSchema
 from app.models.user import PrivacyLevel
 import re
@@ -34,6 +34,8 @@ class UserCreate(UserBase):
             raise ValueError('Password must contain at least one lowercase letter')
         if not re.search(r'[0-9]', v):
             raise ValueError('Password must contain at least one number')
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
         return v
 
 class UserUpdate(BaseSchema):
@@ -42,44 +44,68 @@ class UserUpdate(BaseSchema):
     bio: Optional[str] = None
     phone: Optional[str] = Field(None, max_length=20)
     avatar_url: Optional[str] = None
+    background_image_url: Optional[str] = None
+    birth_date: Optional[date] = None
     privacy_level: Optional[PrivacyLevel] = None
     show_email: Optional[bool] = None
     show_phone: Optional[bool] = None
     show_online_status: Optional[bool] = None
     show_last_seen: Optional[bool] = None
 
-class UserPrivateProfileResponse(BaseSchema):
-    """私密個人資料回應 - 僅顯示統計數據"""
-    id: int
-    username: str
-    display_name: Optional[str]
-    avatar_url: Optional[str]
+class UserProfileStats(BaseSchema):
+    """用戶個人資料頁面的統計數據"""
     total_posts: int
     total_following: int
     total_followers: int
-    privacy_level: PrivacyLevel = PrivacyLevel.PRIVATE
 
-class UserPublicResponse(BaseSchema):
-    """公開資訊響應"""
+class UserProfileBase(BaseSchema):
+    """所有個人資料視圖的基礎"""
     id: int
     username: str
     display_name: Optional[str]
     avatar_url: Optional[str]
+    background_image_url: Optional[str]
     bio: Optional[str]
-    is_verified: bool
+    privacy_level: PrivacyLevel
+    linked_roles: List[str]
+
+class UserPrivateProfile(UserProfileBase, UserProfileStats):
+    """非好友看到的私密用戶資料"""
+    # id: int
+    # username: str
+    # display_name: Optional[str]
+    # avatar_url: Optional[str]
+    # total_posts: int
+    # total_following: int
+    # total_followers: int
+    # privacy_level: PrivacyLevel = PrivacyLevel.PRIVATE
+    pass
+
+class UserPublicProfile(UserProfileBase, UserProfileStats):
+    """公開用戶或好友看到的私密用戶資料"""
     created_at: datetime
-    privacy_level: PrivacyLevel = PrivacyLevel.PUBLIC
+    birth_date: Optional[date]
 
-# class UserLimitedResponse(UserPublicResponse):
-#     """有限資訊響應 - 好友可見"""
+class UserFriendViewProfile(UserPublicProfile):
+    """好友看到的私密用戶資料，包含共同好友"""
+    mutual_friends: int
+
+# class UserPublicResponse(BaseSchema):
+#     """公開資訊響應"""
+#     id: int
+#     username: str
+#     display_name: Optional[str]
+#     avatar_url: Optional[str]
 #     bio: Optional[str]
-#     last_seen: Optional[datetime] = None
-#     is_online: Optional[bool] = None
-    
-#     class Config:
-#         from_attributes = True
+#     is_verified: bool
+#     created_at: datetime
+#     privacy_level: PrivacyLevel = PrivacyLevel.PUBLIC
 
-class UserFullResponse(UserPublicResponse):
+# class UserFriendViewResponse(UserPublicResponse):
+#     """好友視角的私密用戶資訊響應 (與公開資訊相同)"""
+#     pass
+
+class UserFullResponse(UserPublicProfile):
     """完整資訊響應 - 自己或管理員可見"""
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
@@ -87,7 +113,7 @@ class UserFullResponse(UserPublicResponse):
     is_verified: bool
     two_factor_enabled: bool
     last_login_at: Optional[datetime]
-    privacy_level: str
+    # privacy_level: str
     show_email: bool
     show_phone: bool
     show_online_status: bool

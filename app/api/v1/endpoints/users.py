@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.permissions import get_current_user
 from app.schemas.user import (
     UserResponse, UserUpdate, PrivacySettings,
-    UserPublicResponse, UserPrivateProfileResponse, UserFullResponse
+    UserPublicProfile, UserPrivateProfile, UserFullResponse
 )
 from app.schemas.base import PaginationParams, PaginatedResponse
 from app.services.user_service import UserService
@@ -71,7 +71,7 @@ def get_users(
 #     visible_data = privacy_service.get_user_visible_data(current_user, user)
 #     return visible_data
 
-@router.get("/{user_id}", response_model=Union[UserPublicResponse, UserPrivateProfileResponse])
+@router.get("/{user_id}", response_model=Union[UserPublicProfile, UserPrivateProfile])
 def get_user(
     user_id: int,
     db: Session = Depends(get_db),

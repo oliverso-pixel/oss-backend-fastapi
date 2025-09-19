@@ -13,7 +13,7 @@ from app.schemas.social import (
     FriendshipAction, BlockedUserResponse, FriendshipStatistics,
     SocialFeed
 )
-from app.schemas.user import UserPublicResponse
+from app.schemas.user import UserPublicProfile
 from app.schemas.base import PaginationParams, PaginatedResponse
 
 router = APIRouter()
@@ -80,7 +80,7 @@ def get_friend_requests(
         user_data = privacy_service.get_user_visible_data(current_user, req.user)
         items.append(FriendRequestResponse(
             id=req.id,
-            user=user_data,
+            user=user_data.model_dump(),
             status=req.status.value,
             message=req.message,
             created_at=req.created_at,
@@ -309,27 +309,89 @@ def unfollow_user(
     
     return {"message": "Successfully unfollowed user"}
 
-@router.get("/followers", response_model=PaginatedResponse)
-def get_followers(
+# @router.get("/followers", response_model=PaginatedResponse)
+# def get_followers(
+#     search: Optional[str] = Query(None),
+#     pagination: PaginationParams = Depends(),
+#     db: Session = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ) -> Any:
+#     """獲取關注者列表"""
+#     social_service = SocialService(db)
+#     privacy_service = PrivacyService(db)
+    
+#     followers, total = social_service.get_followers(
+#         current_user.id, search, pagination.skip, pagination.limit
+#     )
+    
+#     items = []
+#     for follower in followers:
+#         # user_data = privacy_service.get_user_visible_data(current_user, follower.follower)
+#         user_response_model = privacy_service.get_user_visible_data(current_user, follower.follower)
+#         user_data_dict = user_response_model.model_dump()
+#         user_data_dict["followed_at"] = follower.created_at
+#         items.append(user_data_dict)
+    
+#     return PaginatedResponse(
+#         items=items,
+#         total=total,
+#         page=pagination.page,
+#         per_page=pagination.per_page,
+#         pages=(total + pagination.per_page - 1) // pagination.per_page
+#     )
+
+# @router.get("/following", response_model=PaginatedResponse)
+# def get_following(
+#     search: Optional[str] = Query(None),
+#     pagination: PaginationParams = Depends(),
+#     db: Session = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ) -> Any:
+#     """獲取關注列表"""
+#     social_service = SocialService(db)
+#     privacy_service = PrivacyService(db)
+    
+#     following, total = social_service.get_following(
+#         current_user.id, search, pagination.skip, pagination.limit
+#     )
+    
+#     items = []
+#     for follow in following:
+#         user_response_model = privacy_service.get_user_visible_data(current_user, follow.following)
+#         user_data_dict = user_response_model.model_dump()
+#         user_data_dict["followed_at"] = follow.created_at
+#         items.append(user_data_dict)
+    
+#     return PaginatedResponse(
+#         items=items,
+#         total=total,
+#         page=pagination.page,
+#         per_page=pagination.per_page,
+#         pages=(total + pagination.per_page - 1) // pagination.per_page
+#     )
+
+@router.get("/users/{user_id}/followers", response_model=PaginatedResponse)
+def get_user_followers(
+    user_id: int,
     search: Optional[str] = Query(None),
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    """獲取關注者列表"""
+    """獲取指定用戶的關注者列表"""
     social_service = SocialService(db)
     privacy_service = PrivacyService(db)
     
     followers, total = social_service.get_followers(
-        current_user.id, search, pagination.skip, pagination.limit
+        user_id, search, pagination.skip, pagination.limit
     )
     
     items = []
-    for follower in followers:
-        user_data = privacy_service.get_user_visible_data(current_user, follower.follower)
-        # 添加關注時間
-        user_data["followed_at"] = follower.created_at
-        items.append(user_data)
+    for follow in followers:
+        user_response_model = privacy_service.get_user_visible_data(current_user, follow.follower)
+        user_data_dict = user_response_model.model_dump()
+        user_data_dict["followed_at"] = follow.created_at
+        items.append(user_data_dict)
     
     return PaginatedResponse(
         items=items,
@@ -339,27 +401,28 @@ def get_followers(
         pages=(total + pagination.per_page - 1) // pagination.per_page
     )
 
-@router.get("/following", response_model=PaginatedResponse)
-def get_following(
+@router.get("/users/{user_id}/following", response_model=PaginatedResponse)
+def get_user_following(
+    user_id: int,
     search: Optional[str] = Query(None),
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    """獲取關注列表"""
+    """獲取指定用戶的關注列表"""
     social_service = SocialService(db)
     privacy_service = PrivacyService(db)
     
     following, total = social_service.get_following(
-        current_user.id, search, pagination.skip, pagination.limit
+        user_id, search, pagination.skip, pagination.limit
     )
     
     items = []
     for follow in following:
-        user_data = privacy_service.get_user_visible_data(current_user, follow.following)
-        # 添加關注時間
-        user_data["followed_at"] = follow.created_at
-        items.append(user_data)
+        user_response_model = privacy_service.get_user_visible_data(current_user, follow.following)
+        user_data_dict = user_response_model.model_dump()
+        user_data_dict["followed_at"] = follow.created_at
+        items.append(user_data_dict)
     
     return PaginatedResponse(
         items=items,
@@ -394,9 +457,12 @@ def get_friend_suggestions(
     
     items = []
     for user, mutual_friends_count in suggestions:
-        user_data = privacy_service.get_user_visible_data(current_user, user)
-        user_data["mutual_friends_count"] = mutual_friends_count
-        items.append(user_data)
+        # user_data = privacy_service.get_user_visible_data(current_user, user)
+        # user_data["mutual_friends_count"] = mutual_friends_count
+        user_data_model = privacy_service.get_user_visible_data(current_user, user)
+        user_data_dict = user_data_model.model_dump()
+        user_data_dict["mutual_friends_count"] = mutual_friends_count
+        items.append(user_data_dict)
     
     return PaginatedResponse(
         items=items,
