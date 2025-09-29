@@ -40,3 +40,4 @@ class ResetPasswordConfirm(BaseSchema):
 class TokenPayload(BaseModel):
     sub: int  # user_id
     exp: Optional[int] = None
+

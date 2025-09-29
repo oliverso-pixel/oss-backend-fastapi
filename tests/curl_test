@@ -57,10 +57,10 @@ curl -X POST http://124.244.244.26:10380/api/v1/auth/logout -H "Authorization: B
 curl -X GET http://124.244.244.26:10380/api/v1/users/me -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 默認分頁
-curl -X GET http://124.244.244.26:10380/api/v1/users/ -H "Authorization: Bearer $ACCESS_TOKEN" | jq . ## unknown effect ##
+curl -X GET http://124.244.244.26:10380/api/v1/users/ -H "Authorization: Bearer $ACCESS_TOKEN" | jq . ## unknown effect ## Error
 
 # 獲取用戶列表
-curl -X GET "http://124.244.244.26:10380/api/v1/users/?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . ## unknown effect ##
+curl -X GET "http://124.244.244.26:10380/api/v1/users/?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq . ## unknown effect ## Error
 
 # 獲取特定用戶
 curl -X GET "http://124.244.244.26:10380/api/v1/users/[id]" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
@@ -237,7 +237,7 @@ curl -X POST "http://124.244.244.26:10380/api/v1/pets" -H "Authorization: Bearer
 # 創建貓咪
 curl -X POST "http://124.244.244.26:10380/api/v1/pets" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "Luna","species": "cat","breed": "Persian","gender": "female","birth_date": "2023-01-20","weight": 4.2,"description": "A beautiful persian cat with long fur"}' | jq . 
 # 創建鳥
-curl -X POST "http://124.244.244.26:10380/api/v1/pets" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \-d '{"name": "Tweety","species": "bird","breed": "Canary","gender": "unknown","birth_date": "2024-03-10","weight": 0.025,"description": "A yellow canary that sings beautifully"}' | jq . 
+curl -X POST "http://124.244.244.26:10380/api/v1/pets" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "Tweety","species": "bird","breed": "Canary","gender": "unknown","birth_date": "2024-03-10","weight": 0.025,"description": "A yellow canary that sings beautifully"}' | jq . 
 
 # 獲取我的寵物列表
 curl -X GET "http://124.244.244.26:10380/api/v1/pets/" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
@@ -270,10 +270,8 @@ curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=&user_id=1" -H "Au
 # 組合搜索
 curl -X GET "http://124.244.244.26:10380/api/v1/pets/search?q=Max&species=dog&page=1&per_page=10" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
-
 # 獲取寵物統計資料
 curl -X GET "http://124.244.244.26:10380/api/v1/pets/1/statistics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .      ** ERROR ** 
-
 
 # 刪除寵物（軟刪除）
 curl -X DELETE "http://124.244.244.26:10380/api/v1/pets/4" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
@@ -422,3 +420,27 @@ curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/access-requests/1/ap
 curl -s -X GET "http://124.244.244.26:10380/api/v1/medical/clinics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 
+
+
+
+
+curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "今天天氣真好，適合帶毛孩出門散步！","visibility": "public","tags": ["日常", "散步"]}'
+
+# 好友可見貼文
+curl -X POST "http://localhost:8000/api/v1/posts" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "分享一個寵物小秘密，只有好友看得到喔！",
+    "visibility": "friends",
+    "tags": ["秘密", "好友"]
+  }'
+
+# 私人貼文
+curl -X POST "http://localhost:8000/api/v1/posts" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "這是我的私人筆記，記錄一下今天的心情",
+    "visibility": "private"
+  }'

@@ -87,3 +87,4 @@ def decode_token(token: str) -> Dict[str, Any]:
 def hash_token(token: str) -> str:
     """對 token 進行 hash 處理（用於儲存）"""
     return hashlib.sha256(token.encode()).hexdigest()
+

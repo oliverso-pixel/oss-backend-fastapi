@@ -18,10 +18,11 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserResponse)
 def get_current_user_info(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ) -> Any:
     """獲取當前用戶信息"""
-    privacy_service = PrivacyService(db=None)
+    privacy_service = PrivacyService(db) 
     return privacy_service._get_full_user_data(current_user)
 
 @router.get("/", response_model=PaginatedResponse)

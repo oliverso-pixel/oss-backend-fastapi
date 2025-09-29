@@ -71,14 +71,6 @@ class UserProfileBase(BaseSchema):
 
 class UserPrivateProfile(UserProfileBase, UserProfileStats):
     """非好友看到的私密用戶資料"""
-    # id: int
-    # username: str
-    # display_name: Optional[str]
-    # avatar_url: Optional[str]
-    # total_posts: int
-    # total_following: int
-    # total_followers: int
-    # privacy_level: PrivacyLevel = PrivacyLevel.PRIVATE
     pass
 
 class UserPublicProfile(UserProfileBase, UserProfileStats):
@@ -89,21 +81,6 @@ class UserPublicProfile(UserProfileBase, UserProfileStats):
 class UserFriendViewProfile(UserPublicProfile):
     """好友看到的私密用戶資料，包含共同好友"""
     mutual_friends: int
-
-# class UserPublicResponse(BaseSchema):
-#     """公開資訊響應"""
-#     id: int
-#     username: str
-#     display_name: Optional[str]
-#     avatar_url: Optional[str]
-#     bio: Optional[str]
-#     is_verified: bool
-#     created_at: datetime
-#     privacy_level: PrivacyLevel = PrivacyLevel.PUBLIC
-
-# class UserFriendViewResponse(UserPublicResponse):
-#     """好友視角的私密用戶資訊響應 (與公開資訊相同)"""
-#     pass
 
 class UserFullResponse(UserPublicProfile):
     """完整資訊響應 - 自己或管理員可見"""
@@ -118,7 +95,7 @@ class UserFullResponse(UserPublicProfile):
     show_phone: bool
     show_online_status: bool
     show_last_seen: bool
-    roles: List[str] = []
+    # roles: List[str] = []
     
     class Config:
         from_attributes = True

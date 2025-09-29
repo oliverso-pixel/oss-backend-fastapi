@@ -193,3 +193,4 @@ def require_any_permission(permissions: List[str]):
 is_authenticated = PermissionChecker([])
 is_admin = PermissionChecker(["admin.access"])
 is_merchant = PermissionChecker(["product.create"])
+

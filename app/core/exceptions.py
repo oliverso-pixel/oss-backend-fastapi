@@ -26,3 +26,4 @@ class UnauthorizedException(HTTPException):
             detail=detail,
             headers=headers or {"WWW-Authenticate": "Bearer"}
         )
+

@@ -1,5 +1,5 @@
 # app/models/post.py
-from sqlalchemy import Column, BigInteger, String, Text, Boolean, ForeignKey, Enum, DECIMAL
+from sqlalchemy import Column, BigInteger, String, Text, Boolean, ForeignKey, Enum as SQLAlchemyEnum, DECIMAL
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 import enum
@@ -16,7 +16,11 @@ class Post(BaseModel):
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     pet_id = Column(BigInteger, ForeignKey("pets.id", ondelete="SET NULL"), index=True)
     content = Column(Text)
-    visibility = Column(Enum(Visibility), default=Visibility.PUBLIC)
+    visibility = Column(
+        SQLAlchemyEnum(Visibility, value_callable=lambda x: [e.value for e in x]),
+        default=Visibility.PUBLIC,
+        nullable=False
+    )
     location = Column(String(255))
     latitude = Column(DECIMAL(10, 8))
     longitude = Column(DECIMAL(11, 8))

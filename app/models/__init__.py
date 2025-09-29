@@ -54,3 +54,4 @@ __all__ = [
     "PetMedicalRecord", "PetVaccination", "VeterinaryClinic",
     "Veterinarian", "VaccineType", "VisitType",
 ]
+
