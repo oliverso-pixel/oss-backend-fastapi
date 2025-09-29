@@ -8,6 +8,8 @@ from app.models.user import User
 from app.models.post import Visibility
 from app.services.post_service import PostService
 from app.services.media_service import MediaService
+from app.services.social_service import SocialService
+from app.services.privacy_service import PrivacyService
 from app.schemas.post import (
     PostCreate, PostUpdate, PostResponse, PostDetailResponse,
     PostStatistics, CommentResponse, TagResponse
@@ -15,6 +17,38 @@ from app.schemas.post import (
 from app.schemas.base import PaginationParams, PaginatedResponse
 
 router = APIRouter()
+
+def build_post_response(post, current_user: User, db: Session) -> PostResponse:
+    """從資料庫物件建立 PostResponse"""
+    social_service = SocialService(db)
+    privacy_service = PrivacyService(db)
+    
+    # 處理 author
+    author_data = privacy_service.get_user_visible_data(viewer=current_user, target_user=post.author)
+
+    # 處理 tags
+    tags_data = [TagResponse.model_validate(pt.tag) for pt in post.tags]
+    
+    # 處理 media
+    media_data = [
+        {
+            **pm.media.__dict__,
+            "display_order": pm.display_order
+        } for pm in post.media
+    ]
+
+    response_data = {
+        **post.__dict__,
+        "author": author_data,
+        "tags": tags_data,
+        "media": media_data,
+        "like_count": len(post.likes),
+        "comment_count": len([c for c in post.comments if not c.is_deleted]),
+        "is_liked": any(like.user_id == current_user.id for like in post.likes)
+    }
+    
+    return PostResponse.model_validate(response_data)
+
 
 @router.post("", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 def create_post(
@@ -26,13 +60,8 @@ def create_post(
     post_service = PostService(db)
     post = post_service.create_post(current_user.id, post_data)
     
-    # 構建響應
-    response = PostResponse.model_validate(post)
-    response.like_count = len(post.likes)
-    response.comment_count = len([c for c in post.comments if not c.is_deleted])
-    response.is_liked = any(like.user_id == current_user.id for like in post.likes)
-    
-    return response
+    # 手動建立響應
+    return build_post_response(post, current_user, db)
 
 @router.get("/feed", response_model=PaginatedResponse)
 def get_feed(
@@ -52,14 +81,7 @@ def get_feed(
         limit=pagination.limit
     )
     
-    # 構建響應
-    items = []
-    for post in posts:
-        response = PostResponse.model_validate(post)
-        response.like_count = len(post.likes)
-        response.comment_count = len([c for c in post.comments if not c.is_deleted])
-        response.is_liked = any(like.user_id == current_user.id for like in post.likes)
-        items.append(response)
+    items = [build_post_response(p, current_user, db) for p in posts]
     
     return PaginatedResponse(
         items=items,
@@ -91,14 +113,7 @@ def search_posts(
         limit=pagination.limit
     )
     
-    # 構建響應
-    items = []
-    for post in posts:
-        response = PostResponse.model_validate(post)
-        response.like_count = len(post.likes)
-        response.comment_count = len([c for c in post.comments if not c.is_deleted])
-        response.is_liked = any(like.user_id == current_user.id for like in post.likes)
-        items.append(response)
+    items = [build_post_response(p, current_user, db) for p in posts]
     
     return PaginatedResponse(
         items=items,
@@ -137,10 +152,7 @@ def get_post(
         )
     
     # 構建詳細響應
-    response = PostDetailResponse.model_validate(post)
-    response.like_count = len(post.likes)
-    response.comment_count = len([c for c in post.comments if not c.is_deleted])
-    response.is_liked = any(like.user_id == current_user.id for like in post.likes)
+    response = PostDetailResponse.model_validate(build_post_response(post, current_user, db))
     response.user_can_edit = post.user_id == current_user.id
     response.user_can_delete = post.user_id == current_user.id
     
@@ -181,13 +193,7 @@ def update_post(
             detail="Post not found or you don't have permission to update it"
         )
     
-    # 構建響應
-    response = PostResponse.model_validate(post)
-    response.like_count = len(post.likes)
-    response.comment_count = len([c for c in post.comments if not c.is_deleted])
-    response.is_liked = any(like.user_id == current_user.id for like in post.likes)
-    
-    return response
+    return build_post_response(post, current_user, db)
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(
@@ -323,14 +329,7 @@ def get_user_posts(
         limit=pagination.limit
     )
     
-    # 構建響應
-    items = []
-    for post in posts:
-        response = PostResponse.model_validate(post)
-        response.like_count = len(post.likes)
-        response.comment_count = len([c for c in post.comments if not c.is_deleted])
-        response.is_liked = any(like.user_id == current_user.id for like in post.likes)
-        items.append(response)
+    items = [build_post_response(p, current_user, db) for p in posts]
     
     return PaginatedResponse(
         items=items,

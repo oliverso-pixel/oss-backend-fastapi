@@ -1,11 +1,12 @@
 # app/schemas/post.py
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, computed_field
 from typing import Optional, List
 from datetime import datetime
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserPublicProfile
 from app.schemas.pet import PetResponse
 from app.models.post import Visibility
+from app.models.social import PostTag # 導入 PostTag
 
 class PostBase(BaseSchema):
     """貼文基礎 Schema"""
@@ -28,7 +29,7 @@ class PostCreate(PostBase):
     
     @field_validator('media_ids')
     def validate_content_or_media(cls, v, values):
-        if not v and not values.data.get('content'):
+        if 'content' in values.data and not v and not values.data.get('content'):
             raise ValueError('Post must have either content or media')
         return v
 
@@ -53,7 +54,7 @@ class MediaResponse(BaseSchema):
     duration: Optional[int]
     display_order: int
 
-class TagResponse(BaseSchema):
+class TagResponse(TimestampSchema):
     """標籤響應 Schema"""
     id: int
     name: str
@@ -81,6 +82,13 @@ class PostResponse(PostBase, TimestampSchema):
     media: List[MediaResponse] = []
     tags: List[TagResponse] = []
     
+    @computed_field
+    @property
+    def processed_tags(self) -> List[TagResponse]:
+        if hasattr(self, 'tags') and all(isinstance(pt, PostTag) for pt in self.tags):
+             return [TagResponse.model_validate(pt.tag) for pt in self.tags]
+        return self.tags
+
     class Config:
         from_attributes = True
 
