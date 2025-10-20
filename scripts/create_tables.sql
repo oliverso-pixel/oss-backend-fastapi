@@ -229,6 +229,7 @@ CREATE TABLE IF NOT EXISTS `posts` (
     `longitude` DECIMAL(11, 8) DEFAULT NULL,
     `view_count` BIGINT UNSIGNED DEFAULT 0,
     `is_deleted` BOOLEAN DEFAULT FALSE,
+    `comments_enabled` BOOLEAN DEFAULT TRUE,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -248,15 +249,27 @@ CREATE TABLE IF NOT EXISTS `media` (
     `file_name` VARCHAR(255) NOT NULL,
     `file_size` BIGINT UNSIGNED NOT NULL,
     `mime_type` VARCHAR(100) NOT NULL,
-    `media_type` ENUM('image', 'video') NOT NULL,
-    `width` INT UNSIGNED DEFAULT NULL,
-    `height` INT UNSIGNED DEFAULT NULL,
-    `duration` INT UNSIGNED DEFAULT NULL,
-    `thumbnail_path` VARCHAR(500) DEFAULT NULL,
+    `media_type` ENUM('image', 'video', 'document', 'audio') NOT NULL,
+    `width` INT UNSIGNED,
+    `height` INT UNSIGNED,
+    `duration` INT UNSIGNED,
+    `thumbnail_path` VARCHAR(500),
     `is_processed` BOOLEAN DEFAULT FALSE,
+    `extra_data` JSON,
+    `hash` VARCHAR(64),
+    `folder_type` VARCHAR(50),
+    `related_id` BIGINT UNSIGNED,
+    `is_public` BOOLEAN DEFAULT TRUE,
+    `deleted_at` TIMESTAMP NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    KEY `idx_user_created` (`user_id`, `created_at`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_file_path` (`file_path`),
+    KEY `idx_media_type` (`media_type`),
+    KEY `idx_hash` (`hash`),
+    KEY `idx_folder_related` (`folder_type`, `related_id`),
+    KEY `idx_created_at` (`created_at`),
     CONSTRAINT `fk_media_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -378,15 +391,40 @@ CREATE TABLE IF NOT EXISTS `comments` (
     `user_id` BIGINT UNSIGNED NOT NULL,
     `post_id` BIGINT UNSIGNED NOT NULL,
     `parent_id` BIGINT UNSIGNED DEFAULT NULL,
+    `quoted_comment_id` BIGINT UNSIGNED DEFAULT NULL,
     `content` TEXT NOT NULL,
+    `like_count` INT UNSIGNED DEFAULT 0,
+    `reply_count` INT UNSIGNED DEFAULT 0,
+    `last_reply_at` DATETIME DEFAULT NULL,
     `is_deleted` BOOLEAN DEFAULT FALSE,
+    `deleted_by` BIGINT UNSIGNED DEFAULT NULL,
+    `deleted_at` DATETIME DEFAULT NULL,
+    `deletion_reason` VARCHAR(255) DEFAULT NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_post_created` (`post_id`, `created_at`),
+    KEY `idx_comments_deleted` (`is_deleted`, `post_id`),
+    KEY `idx_comments_likes` (`like_count` DESC),
+    KEY `idx_comments_replies` (`last_reply_at` DESC),
+    FULLTEXT KEY `idx_comments_fulltext` (`content`),
     CONSTRAINT `fk_comments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_comments_post` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_comments_parent` FOREIGN KEY (`parent_id`) REFERENCES `comments` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_comments_parent` FOREIGN KEY (`parent_id`) REFERENCES `comments` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_comments_quoted` FOREIGN KEY (`quoted_comment_id`) REFERENCES `comments` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_comments_deleted_by` FOREIGN KEY (`deleted_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `comment_likes` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `comment_id` BIGINT UNSIGNED NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unique_user_comment` (`user_id`, `comment_id`),
+    KEY `idx_comment_created` (`comment_id`, `created_at`),
+    CONSTRAINT `fk_comment_likes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_comment_likes_comment` FOREIGN KEY (`comment_id`) REFERENCES `comments` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -1000,6 +1038,37 @@ BEGIN
 END//
 
 DELIMITER ;
+
+-- DELIMITER //
+
+-- CREATE TRIGGER `update_parent_comment_stats` AFTER INSERT ON `comments`
+-- FOR EACH ROW
+-- BEGIN
+--     IF NEW.parent_id IS NOT NULL THEN
+--         UPDATE `comments` 
+--         SET `reply_count` = `reply_count` + 1,
+--             `last_reply_at` = NOW()
+--         WHERE `id` = NEW.parent_id;
+--     END IF;
+-- END//
+
+-- CREATE TRIGGER `update_comment_like_count` AFTER INSERT ON `comment_likes`
+-- FOR EACH ROW
+-- BEGIN
+--     UPDATE `comments` 
+--     SET `like_count` = `like_count` + 1
+--     WHERE `id` = NEW.comment_id;
+-- END//
+
+-- CREATE TRIGGER `decrease_comment_like_count` AFTER DELETE ON `comment_likes`
+-- FOR EACH ROW
+-- BEGIN
+--     UPDATE `comments` 
+--     SET `like_count` = `like_count` - 1
+--     WHERE `id` = OLD.comment_id AND `like_count` > 0;
+-- END//
+
+-- DELIMITER ;
 
 -- 使用範例：尋找用戶附近的診所
 -- SELECT 

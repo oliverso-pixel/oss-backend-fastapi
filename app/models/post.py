@@ -26,6 +26,7 @@ class Post(BaseModel):
     longitude = Column(DECIMAL(11, 8))
     view_count = Column(BigInteger, default=0)
     is_deleted = Column(Boolean, default=False)
+    comments_enabled = Column(Boolean, default=True)
     
     # 關聯
     author = relationship("User", back_populates="posts")

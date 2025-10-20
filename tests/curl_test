@@ -185,7 +185,7 @@ curl -X POST "http://124.244.244.26:10380/api/v1/social/follow/[id]" -H "Authori
 curl -X DELETE "http://124.244.244.26:10380/api/v1/social/follow/[id]" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 獲取關注者列表（誰關注我）
-curl -X GET "http://124.244.244.26:10380/api/v1/social/followers" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+# curl -X GET "http://124.244.244.26:10380/api/v1/social/followers" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 curl -X GET "http://124.244.244.26:10380/api/v1/social/users/2/followers" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 搜索關注者
@@ -195,7 +195,7 @@ curl -X GET "http://124.244.244.26:10380/api/v1/social/followers?search=david" -
 curl -X GET "http://124.244.244.26:10380/api/v1/social/followers?page=1&per_page=30" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 獲取關注列表（我關注誰）
-curl -X GET "http://124.244.244.26:10380/api/v1/social/following" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+# curl -X GET "http://124.244.244.26:10380/api/v1/social/following" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 curl -X GET "http://124.244.244.26:10380/api/v1/social/users/2/following" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 # 搜索關注的人
@@ -322,68 +322,8 @@ curl -X GET "http://124.244.244.26:10380/api/v1/pet-transfer/pets/1/transfer/his
 # 獲取轉移統計數據
 curl -X GET "http://124.244.244.26:10380/api/v1/pet-transfer/transfer/statistics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
-# ========== 貼文相關 ==========
 
-# 創建貼文
-curl -X POST http://124.244.244.26:10380/api/v1/posts \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "My first post!",
-    "visibility": "public",
-    "location": "Taipei, Taiwan",
-    "tags": ["pet", "dog", "happy"],
-    "pet_id": 1
-  }'
-
-# 獲取貼文列表
-curl -X GET "http://124.244.244.26:10380/api/v1/posts?page=1&per_page=20" \
-  -H "Authorization: Bearer $TOKEN"
-
-# 獲取時間軸
-curl -X GET http://124.244.244.26:10380/api/v1/posts/timeline \
-  -H "Authorization: Bearer $TOKEN"
-
-# 獲取特定貼文
-curl -X GET http://124.244.244.26:10380/api/v1/posts/1 \
-  -H "Authorization: Bearer $TOKEN"
-
-# 更新貼文
-curl -X PUT http://124.244.244.26:10380/api/v1/posts/1 \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "Updated post content",
-    "visibility": "friends"
-  }'
-
-# 刪除貼文
-curl -X DELETE http://124.244.244.26:10380/api/v1/posts/1 \
-  -H "Authorization: Bearer $TOKEN"
-
-# 按讚貼文
-curl -X POST http://124.244.244.26:10380/api/v1/posts/1/like \
-  -H "Authorization: Bearer $TOKEN"
-
-# 取消按讚
-curl -X DELETE http://124.244.244.26:10380/api/v1/posts/1/like \
-  -H "Authorization: Bearer $TOKEN"
-
-# 新增評論
-curl -X POST http://124.244.244.26:10380/api/v1/posts/1/comments \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Great post!"}'
-
-# 獲取貼文評論
-curl -X GET http://124.244.244.26:10380/api/v1/posts/1/comments \
-  -H "Authorization: Bearer $TOKEN"
-
-# 刪除評論
-curl -X DELETE http://124.244.244.26:10380/api/v1/comments/1 \
-  -H "Authorization: Bearer $TOKEN"
-
-# ==========  ==========
+# ========== Pet 病歷，疫苗記錄，診所例表 ==========
 
 VET_RESPONSE=$(curl -s -X POST http://124.244.244.26:10380/api/v1/auth/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=testuser4&password=test123456") | jq .
 VET_TOKEN=(echo $VET_RESPONSE | jq -r '.access_token')
@@ -420,27 +360,158 @@ curl -s -X POST "http://124.244.244.26:10380/api/v1/medical/access-requests/1/ap
 curl -s -X GET "http://124.244.244.26:10380/api/v1/medical/clinics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
 
 
+# ========== 貼文相關 ==========
 
+# 創建貼文
+curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "今天天氣真好，適合帶毛孩出門散步！","visibility": "public","tags": ["日常", "散步"]}' | jq .
+curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "My first post!","visibility": "public","location": "Taipei, Taiwan","tags": ["pet", "dog", "happy"],"pet_id": 1}' | jq .
 
-
-
-curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "今天天氣真好，適合帶毛孩出門散步！","visibility": "public","tags": ["日常", "散步"]}'
+curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "今天帶狗狗去公園散步！","visibility": "public","tags": ["狗狗", "散步", "日常"],"pet_id": 1,"location": "大安森林公園","latitude": 25.0330,"longitude": 121.5654,"media_ids": []}' | jq .
 
 # 好友可見貼文
-curl -X POST "http://localhost:8000/api/v1/posts" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "分享一個寵物小秘密，只有好友看得到喔！",
-    "visibility": "friends",
-    "tags": ["秘密", "好友"]
-  }'
+curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "分享一個寵物小秘密，只有好友看得到喔！","visibility": "friends","tags": ["秘密", "好友"]}' | jq .
 
 # 私人貼文
-curl -X POST "http://localhost:8000/api/v1/posts" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "這是我的私人筆記，記錄一下今天的心情",
-    "visibility": "private"
-  }'
+curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "這是我的私人筆記，記錄一下今天的心情","visibility": "private"}' | jq .
+
+# 上傳圖片
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/media/upload" -H "Authorization: Bearer $ACCESS_TOKEN" -F "file=@/path/to/image.jpg" | jq .
+
+# 使用上傳的媒體創建貼文
+curl -X POST "http://124.244.244.26:10380/api/v1/posts" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "分享一張照片","visibility": "public","media_ids": [123],"tags": ["照片", "分享"]}' | jq .
+
+
+
+# 獲取包含好友和關注者的動態
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/feed?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 只獲取好友的貼文
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/feed?include_following=false&page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .   出現包括自己的貼文
+
+# 只獲取關注者的貼文
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/feed?include_friends=false&page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .    出現包括自己的貼文
+
+
+
+# 按關鍵字搜索
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/search" --data-urlencode "q=狗狗" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 按標籤搜索
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/search" --data-urlencode "tag=日常" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 搜索特定用戶的貼文
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/search?user_id=1&page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 搜索特定寵物的貼文
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/search?pet_id=1&page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 組合搜索
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/search" --data-urlencode "q=可愛&tag=萌寵&user_id=1" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+
+
+# 獲取最近7天的熱門標籤（前10個）
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/trending/tags?days=7&limit=10" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獲取最近30天的熱門標籤（前20個）
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/trending/tags?days=30&limit=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+
+
+# 獲取貼文詳情（假設貼文 ID 是 1）
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/1" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獲取貼文統計資料
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/1/statistics" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+# 更新貼文內容（假設貼文 ID 是 1）
+curl -X PUT "http://124.244.244.26:10380/api/v1/posts/1" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "更新：今天天氣真好，我們去了公園散步，小黃玩得超開心！","tags": ["日常", "散步", "開心"]}'
+
+# 更改貼文可見性
+curl -X PUT "http://124.244.244.26:10380/api/v1/posts/1" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"visibility": "friends"}' | jq .
+
+# 更新貼文位置
+curl -X PUT "http://124.244.244.26:10380/api/v1/posts/1" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"location": "大安森林公園","latitude": 25.0325,"longitude": 121.5355}' | jq .
+
+
+# 刪除貼文（軟刪除）
+curl -X DELETE "http://124.244.244.26:10380/api/v1/posts/1" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+# 按讚貼文
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/1/like" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 取消按讚
+curl -X DELETE "http://124.244.244.26:10380/api/v1/posts/1/like" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+# 關閉評論
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/5/comments/toggle?enabled=false" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 開啟評論
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/5/comments/toggle?enabled=true" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+# 新增評論
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/5/comments" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "test"}' | jq .
+
+# 回覆評論（假設要回覆的評論 ID 是 2）
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/5/comments" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "test", "parent_id": 2}' | jq .
+
+# 引用評論
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/5/comments" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "我同意這個觀點","quoted_comment_id": 8}' | jq .
+
+# 同時回覆和引用
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/5/comments" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"content": "回覆並引用其他評論","parent_id": 10,"quoted_comment_id": 8}' | jq .
+
+
+# 獲取特定貼文的所有評論
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/5/comments" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+# 搜索評論內容
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?q=測試" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 按用戶搜索評論
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?user_id=2" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 按貼文搜索評論
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?post_id=5" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 組合搜索並排序（最多按讚）
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?q=測試&sort_by=most_likes" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 其他排序選項
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?sort_by=newest" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?sort_by=oldest" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?sort_by=most_replies" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/comments/search?sort_by=recent_activity" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+# 按讚評論
+curl -X POST "http://124.244.244.26:10380/api/v1/posts/comments/15/like" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 取消按讚評論
+curl -X DELETE "http://124.244.244.26:10380/api/v1/posts/comments/15/like" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+# 刪除評論（不提供原因）
+curl -X DELETE "http://124.244.244.26:10380/api/v1/posts/comments/15" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 刪除評論並提供原因
+curl -X DELETE "http://124.244.244.26:10380/api/v1/posts/comments/15?reason=違反社群規範" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+
+
+# 獲取 testuser1 的所有公開貼文
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/users/1/posts?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# 獲取自己的所有貼文（包括私人）
+curl -X GET "http://124.244.244.26:10380/api/v1/posts/users/1/posts?page=1&per_page=20" -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+

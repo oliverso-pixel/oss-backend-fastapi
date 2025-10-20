@@ -433,6 +433,44 @@ INSERT INTO `posts` (`user_id`, `pet_id`, `content`, `visibility`, `location`, `
 (@user2_id, @pet2_id, '咪咪的新睡姿，也太可愛了吧！#貓咪 #睡覺 #萌寵', 'public', NULL, 200),
 (@user2_id, @pet2_id, '今天帶咪咪去打疫苗，表現很勇敢喔！#貓咪 #健康 #疫苗', 'friends', '愛心動物醫院', 30);
 
+-- 添加評論測試數據
+SET @post1_id = (SELECT id FROM `posts` WHERE content LIKE '今天帶小黃去公園玩%' LIMIT 1);
+SET @post2_id = (SELECT id FROM `posts` WHERE content LIKE '小黃第一次游泳%' LIMIT 1);
+SET @post3_id = (SELECT id FROM `posts` WHERE content LIKE '咪咪的新睡姿%' LIMIT 1);
+
+-- 插入測試評論
+INSERT INTO `comments` (`user_id`, `post_id`, `content`, `created_at`) VALUES
+(@user2_id, @post1_id, '小黃看起來真的很開心！', NOW()),
+(@user3_id, @post1_id, '下次可以一起去公園遛狗', NOW() + INTERVAL 1 MINUTE),
+(@user4_id, @post2_id, '游泳對狗狗很好的運動', NOW() + INTERVAL 2 MINUTE),
+(@user1_id, @post3_id, '貓咪的睡姿都很奇特哈哈', NOW() + INTERVAL 3 MINUTE);
+
+-- 添加回覆評論
+SET @comment1_id = (SELECT id FROM `comments` WHERE content = '小黃看起來真的很開心！' LIMIT 1);
+SET @comment2_id = (SELECT id FROM `comments` WHERE content = '下次可以一起去公園遛狗' LIMIT 1);
+
+INSERT INTO `comments` (`user_id`, `post_id`, `parent_id`, `content`, `created_at`) VALUES
+(@user1_id, @post1_id, @comment1_id, '是啊！他最喜歡去公園了', NOW() + INTERVAL 5 MINUTE),
+(@user1_id, @post1_id, @comment2_id, '好啊！週末一起去', NOW() + INTERVAL 6 MINUTE);
+
+-- 添加引用評論
+INSERT INTO `comments` (`user_id`, `post_id`, `quoted_comment_id`, `content`, `created_at`) VALUES
+(@user4_id, @post1_id, @comment1_id, '引用：小黃看起來真的很開心！\n\n確實，狗狗在戶外都特別活潑', NOW() + INTERVAL 10 MINUTE);
+
+-- 添加評論按讚
+INSERT INTO `comment_likes` (`user_id`, `comment_id`) VALUES
+(@user1_id, @comment1_id),
+(@user3_id, @comment1_id),
+(@user4_id, @comment1_id),
+(@user2_id, @comment2_id);
+
+-- 更新一個貼文為關閉評論
+-- UPDATE `posts` SET `comments_enabled` = FALSE WHERE id = @post3_id;
+
+-- 添加一個被刪除的評論範例
+INSERT INTO `comments` (`user_id`, `post_id`, `content`, `is_deleted`, `deleted_by`, `deleted_at`, `deletion_reason`, `created_at`) VALUES
+(@user3_id, @post1_id, '這個內容已被刪除', TRUE, @admin_id, NOW(), '違反社群規範', NOW() - INTERVAL 1 HOUR);
+
 -- 16. 創建通知範例
 INSERT INTO `notifications` (`user_id`, `type`, `title`, `content`, `data`) VALUES
 (@user1_id, 'follow', '新的關注者', 'testuser2 開始關注你了', '{"follower_id": 2}'),

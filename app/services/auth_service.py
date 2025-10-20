@@ -90,7 +90,7 @@ class AuthService:
             payload = decode_token(refresh_token)
             refresh_jti = payload.get("jti")
             user_id = payload.get("sub")
-             
+            
             # 檢查 refresh token 是否在黑名單中
             if refresh_jti and self._is_token_blacklisted(refresh_jti):
                 raise HTTPException(
@@ -128,111 +128,109 @@ class AuthService:
                 detail="User account is inactive"
             )
         
-        # 將所有舊的 access token 的 JTI 加入黑名單
-        old_access_tokens = self.db.query(UserToken).filter(
-            UserToken.user_id == user.id,
-            UserToken.token_type == TokenType.ACCESS,
-            UserToken.expires_at > datetime.utcnow(),
-            UserToken.revoked_at.is_(None)
-        ).all()
-        
-        for old_token in old_access_tokens:
-            if old_token.jti:  # 如果有 JTI
-                # 檢查是否已在黑名單中
-                # existing = self.db.query(TokenBlacklist).filter(
-                #     TokenBlacklist.jti == old_token.jti
-                # ).first()
-                
-                # if not existing:
-                #     blacklist_entry = TokenBlacklist(
-                #         jti=old_token.jti,
-                #         user_id=user.id,
-                #         expires_at=old_token.expires_at,
-                #         reason="Token refreshed"
-                #     )
-                #     self.db.add(blacklist_entry)
-
-                if not self._is_token_blacklisted(old_token.jti):
-                    blacklist_entry = TokenBlacklist(
-                        jti=old_token.jti,
-                        user_id=user.id,
-                        expires_at=old_token.expires_at,
-                        reason="Token refreshed"
-                    )
-                    self.db.add(blacklist_entry)
+        # 使用資料庫事務來確保原子性
+        try:
+            # 將所有舊的 access token 的 JTI 加入黑名單
+            old_access_tokens = self.db.query(UserToken).filter(
+                UserToken.user_id == user.id,
+                UserToken.token_type == TokenType.ACCESS,
+                UserToken.expires_at > datetime.utcnow(),
+                UserToken.revoked_at.is_(None)
+            ).all()
             
-            # 標記為已撤銷
-            old_token.revoked_at = datetime.utcnow()
-        
-        # 撤銷當前的 refresh token
-        refresh_token_record.revoked_at = datetime.utcnow()
-        
-        # 如果 refresh token 有 JTI，也加入黑名單
-        # if refresh_jti:
-        #     refresh_blacklist = TokenBlacklist(
-        #         jti=refresh_jti,
-        #         user_id=user.id,
-        #         expires_at=refresh_token_record.expires_at,
-        #         reason="Refresh token used"
-        #     )
-        #     self.db.add(refresh_blacklist)
-
-        if refresh_jti and not self._is_token_blacklisted(refresh_jti):
-            refresh_blacklist = TokenBlacklist(
-                jti=refresh_jti,
+            for old_token in old_access_tokens:
+                if old_token.jti and not self._is_token_blacklisted(old_token.jti):
+                    try:
+                        blacklist_entry = TokenBlacklist(
+                            jti=old_token.jti,
+                            user_id=user.id,
+                            expires_at=old_token.expires_at,
+                            reason="Token refreshed"
+                        )
+                        self.db.add(blacklist_entry)
+                        self.db.flush()  # 立即檢查唯一性約束
+                    except Exception:
+                        # 如果已經存在，忽略錯誤
+                        self.db.rollback()
+                        pass
+                
+                # 標記為已撤銷
+                old_token.revoked_at = datetime.utcnow()
+            
+            # 撤銷當前的 refresh token
+            refresh_token_record.revoked_at = datetime.utcnow()
+            
+            # 如果 refresh token 有 JTI，也加入黑名單
+            if refresh_jti and not self._is_token_blacklisted(refresh_jti):
+                try:
+                    refresh_blacklist = TokenBlacklist(
+                        jti=refresh_jti,
+                        user_id=user.id,
+                        expires_at=refresh_token_record.expires_at,
+                        reason="Refresh token used"
+                    )
+                    self.db.add(refresh_blacklist)
+                    self.db.flush()  # 立即檢查唯一性約束
+                except Exception:
+                    # 如果已經存在，忽略錯誤
+                    self.db.rollback()
+                    pass
+            
+            # 創建新的 tokens
+            new_access_jti = secrets.token_urlsafe(16)
+            new_refresh_jti = secrets.token_urlsafe(16)
+            
+            access_token_data = {
+                "sub": str(user.id),
+                "jti": new_access_jti,
+                "type": "access"
+            }
+            new_access_token = create_access_token(data=access_token_data)
+            
+            refresh_token_data = {
+                "sub": str(user.id),
+                "jti": new_refresh_jti,
+                "type": "refresh"
+            }
+            new_refresh_token = create_refresh_token(data=refresh_token_data)
+            
+            # 儲存新的 token 記錄
+            new_refresh_record = UserToken(
                 user_id=user.id,
-                expires_at=refresh_token_record.expires_at,
-                reason="Refresh token used"
+                token_type=TokenType.REFRESH,
+                token_hash=hash_token(new_refresh_token),
+                jti=new_refresh_jti,
+                device_info=refresh_token_record.device_info,
+                expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
             )
-            self.db.add(refresh_blacklist)
-        
-        # 創建新的 tokens
-        new_access_jti = secrets.token_urlsafe(16)
-        new_refresh_jti = secrets.token_urlsafe(16)
-        
-        access_token_data = {
-            "sub": str(user.id),
-            "jti": new_access_jti,
-            "type": "access"
-        }
-        new_access_token = create_access_token(data=access_token_data)
-        
-        refresh_token_data = {
-            "sub": str(user.id),
-            "jti": new_refresh_jti,
-            "type": "refresh"
-        }
-        new_refresh_token = create_refresh_token(data=refresh_token_data)
-        
-        # 儲存新的 token 記錄
-        new_refresh_record = UserToken(
-            user_id=user.id,
-            token_type=TokenType.REFRESH,
-            token_hash=hash_token(new_refresh_token),
-            jti=new_refresh_jti,
-            device_info=refresh_token_record.device_info,
-            expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
-        )
-        self.db.add(new_refresh_record)
-        
-        new_access_record = UserToken(
-            user_id=user.id,
-            token_type=TokenType.ACCESS,
-            token_hash=hash_token(new_access_token),
-            jti=new_access_jti,
-            device_info=refresh_token_record.device_info,
-            expires_at=datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        )
-        self.db.add(new_access_record)
-        
-        # 提交所有更改
-        self.db.commit()
-        
-        return Token(
-            access_token=new_access_token,
-            refresh_token=new_refresh_token,
-            token_type="bearer"
-        )
+            self.db.add(new_refresh_record)
+            
+            new_access_record = UserToken(
+                user_id=user.id,
+                token_type=TokenType.ACCESS,
+                token_hash=hash_token(new_access_token),
+                jti=new_access_jti,
+                device_info=refresh_token_record.device_info,
+                expires_at=datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            )
+            self.db.add(new_access_record)
+            
+            # 提交所有更改
+            self.db.commit()
+            
+            return Token(
+                access_token=new_access_token,
+                refresh_token=new_refresh_token,
+                token_type="bearer"
+            )
+            
+        except Exception as e:
+            self.db.rollback()
+            print(f"Error during token refresh: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to refresh token"
+            )
     
     def logout(self, token: str, user_id: int):
         """登出 - 將 token 加入黑名單"""

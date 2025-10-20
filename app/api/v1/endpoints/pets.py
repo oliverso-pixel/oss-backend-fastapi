@@ -224,101 +224,23 @@ def get_pet_statistics(
             detail=f"Failed to get pet statistics: {str(e)}"
         )
 
-@router.post("/{pet_id}/avatar", response_model=PetResponse)
-async def upload_pet_avatar(
+@router.put("/{pet_id}/avatar-url", response_model=PetResponse)
+def update_pet_avatar_url(
     pet_id: int,
-    file: UploadFile = File(...),
+    avatar_url: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    """上傳寵物頭像"""
-    # 檢查文件類型
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only image files are allowed"
-        )
-    
-    # 檢查文件大小（最大 5MB）
-    if file.size > 5 * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File size too large. Maximum size is 5MB"
-        )
-    
+    """更新寵物頭像 URL（用於外部 URL）"""
     pet_service = PetService(db)
-    media_service = MediaService(db)
+    pet = pet_service.update_pet_avatar(pet_id, current_user.id, avatar_url)
     
-    # 檢查寵物是否存在且屬於當前用戶
-    pet = pet_service.get_pet(pet_id, current_user.id)
-    if not pet or pet.user_id != current_user.id:
+    if not pet:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pet not found or you don't have permission"
         )
     
-    try:
-        # 上傳圖片
-        media = await media_service.upload_image(
-            file=file,
-            user_id=current_user.id,
-            folder=f"avatars/pets/{pet_id}"
-        )
-        
-        # 更新寵物頭像
-        pet = pet_service.update_pet_avatar(pet_id, current_user.id, media.file_path)
-        
-        response = PetResponse.model_validate(pet)
-        response.owner_username = current_user.username
-        
-        return response
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload avatar: {str(e)}"
-        )
+    return PetResponse.model_validate(pet)
 
-# @router.get("/user/{user_id}", response_model=PaginatedResponse)
-# def get_user_pets(
-#     user_id: int,
-#     pagination: PaginationParams = Depends(),
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ) -> Any:
-#     """獲取指定用戶的寵物列表（只顯示活躍的）"""
-#     pet_service = PetService(db)
-    
-#     # 檢查用戶是否存在
-#     user = db.query(User).filter(User.id == user_id).first()
-#     if not user:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="User not found"
-#         )
-    
-#     # 只顯示活躍的寵物（除非是查看自己的）
-#     include_inactive = (user_id == current_user.id)
-    
-#     pets, total = pet_service.get_user_pets(
-#         user_id=user_id,
-#         include_inactive=include_inactive,
-#         skip=pagination.skip,
-#         limit=pagination.limit
-#     )
-    
-#     # 轉換為響應格式
-#     pet_responses = []
-#     for pet in pets:
-#         response = PetResponse.model_validate(pet)
-#         response.owner_username = user.username
-#         pet_responses.append(response)
-    
-#     return PaginatedResponse(
-#         items=pet_responses,
-#         total=total,
-#         page=pagination.page,
-#         per_page=pagination.per_page,
-#         pages=(total + pagination.per_page - 1) // pagination.per_page
-#     )
 

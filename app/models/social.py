@@ -52,17 +52,19 @@ class Follow(Base):
     follower_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     following_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
     # 關聯
     follower = relationship("User", foreign_keys=[follower_id], backref="following")
     following = relationship("User", foreign_keys=[following_id], backref="followers")
 
-class Like(BaseModel):
+class Like(Base):
     __tablename__ = "likes"
     
     id = Column(BigInteger, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     post_id = Column(BigInteger, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
     
     post = relationship("Post", back_populates="likes")
 
@@ -74,13 +76,40 @@ class Comment(BaseModel):
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     post_id = Column(BigInteger, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False)
     parent_id = Column(BigInteger, ForeignKey("comments.id", ondelete="CASCADE"))
+    quoted_comment_id = Column(BigInteger, ForeignKey("comments.id", ondelete="SET NULL"))
     content = Column(Text, nullable=False)
+    like_count = Column(Integer, default=0)
+    reply_count = Column(Integer, default=0)
+    last_reply_at = Column(DateTime)
     is_deleted = Column(Boolean, default=False)
+    deleted_by = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
+    deleted_at = Column(DateTime)
+    deletion_reason = Column(String(255))
     
     # 關聯
-    user = relationship("User", backref="comments")
+    user = relationship("User", foreign_keys=[user_id], backref="comments")
     post = relationship("Post", back_populates="comments")
-    parent = relationship("Comment", remote_side=[id], backref="replies")
+    parent = relationship("Comment", foreign_keys=[parent_id], remote_side=[id], backref="replies")
+    quoted_comment = relationship("Comment", foreign_keys=[quoted_comment_id], remote_side=[id])
+    deleted_by_user = relationship("User", foreign_keys=[deleted_by])
+    likes = relationship("CommentLike", back_populates="comment", cascade="all, delete-orphan")
+
+class CommentLike(Base):
+    """評論按讚表"""
+    __tablename__ = "comment_likes"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    comment_id = Column(BigInteger, ForeignKey("comments.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    
+    # 關聯
+    user = relationship("User")
+    comment = relationship("Comment", back_populates="likes")
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'comment_id', name='unique_user_comment'),
+    )
 
 class Tag(BaseModel):
     """標籤表"""

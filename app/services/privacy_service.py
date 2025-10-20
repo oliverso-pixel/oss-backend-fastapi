@@ -54,50 +54,6 @@ class PrivacyService:
         ).first()
         
         return friendship is not None
-
-    def get_user_visible_data(
-        self, 
-        viewer: Optional[User], 
-        target_user: User
-    ) -> Union[UserPublicProfile, UserPrivateProfile, UserFullResponse, UserFriendViewProfile]:
-        """根據新的隱私規則獲取可見的用戶資料"""
-        viewer_id = viewer.id if viewer else None
-
-        # 規則 1: 如果是自己或管理員，返回完整資料
-        if viewer and (viewer_id == target_user.id or self.is_admin(viewer)):
-            full_data = UserFullResponse.model_validate(target_user).model_dump()
-            stats = self.social_service.get_user_social_stats(target_user.id)
-            full_data.update(stats)
-            full_data['linked_roles'] = [role.role.name for role in target_user.roles if role.role]
-            return UserFullResponse.model_validate(full_data)
-        
-        # 準備基礎資料
-        stats = self.social_service.get_user_social_stats(target_user.id)
-        linked_roles = [role.role.name for role in target_user.roles if role.role]
-        base_data = {
-            **target_user.__dict__,
-            **stats,
-            "linked_roles": linked_roles
-        }
-
-        # 規則 2: 如果目標用戶是公開的
-        if target_user.privacy_level == PrivacyLevel.PUBLIC:
-            return UserPublicProfile.model_validate(base_data)
-        
-        # 規則 3: 如果目標用戶是私密的
-        if target_user.privacy_level == PrivacyLevel.PRIVATE:
-            is_friend = self.social_service.is_friend(viewer.id, target_user.id) if viewer else False
-            if is_friend:
-                # 好友可以看到公開資訊 + 共同好友
-                mutual_friends = self.social_service.get_mutual_friends_count(viewer.id, target_user.id)
-                friend_data = {**base_data, "mutual_friends": mutual_friends}
-                return UserFriendViewProfile.model_validate(friend_data)
-            else:
-                # 非好友只能看到私密資訊
-                return UserPrivateProfile.model_validate(base_data)
-        
-        # 預設回退
-        return UserPrivateProfile.model_validate(base_data)
     
     def _get_minimal_user_data(self, user: User) -> Dict[str, Any]:
         """獲取最少的用戶資料（隱私模式）"""
@@ -110,49 +66,8 @@ class PrivacyService:
             "created_at": user.created_at
         }
     
-    # def _get_public_user_data(self, user: User, viewer: Optional[Union[User, dict]] = None) -> Dict[str, Any]:
-    #     """獲取公開的用戶資料"""
-    #     data = self._get_minimal_user_data(user)
-    #     data["bio"] = user.bio
-        
-    #     # 根據設置顯示在線狀態
-    #     if user.show_online_status and viewer:
-    #         data["is_online"] = self._is_user_online(user)
-        
-    #     # 根據設置顯示最後上線時間
-    #     if user.show_last_seen and viewer:
-    #         data["last_seen"] = user.last_login_at
-        
-    #     # 根據設置顯示聯絡資訊
-    #     if user.show_email:
-    #         data["email"] = user.email
-        
-    #     if user.show_phone:
-    #         data["phone"] = user.phone
-        
-    #     return data
-    
-    # def _get_limited_user_data(self, user: User) -> Dict[str, Any]:
-    #     """獲取有限的用戶資料（好友可見）"""
-    #     data = self._get_minimal_user_data(user)
-    #     data["bio"] = user.bio
-        
-    #     if user.show_online_status:
-    #         data["is_online"] = self._is_user_online(user)
-        
-    #     if user.show_last_seen:
-    #         data["last_seen"] = user.last_login_at
-        
-    #     # 好友可以看到更多資訊
-    #     if user.show_email:
-    #         data["email"] = user.email
-        
-    #     if user.show_phone:
-    #         data["phone"] = user.phone
-        
-    #     return data
-    
-    def _get_full_user_data(self, user: User) -> Dict[str, Any]:
+    # def _get_full_user_data(self, user: User) -> Dict[str, Any]:
+    def _get_full_user_data(self, user: User) -> UserFullResponse:
         """獲取完整的用戶資料（自己或管理員）"""
         # 獲取統計數據
         stats = self.social_service.get_user_social_stats(user.id)
@@ -216,6 +131,46 @@ class PrivacyService:
         # return UserFullResponse.model_validate(data)
         
         # return data
+    
+    def get_user_visible_data(
+        self, 
+        viewer: Optional[User], 
+        target_user: User
+    ) -> Union[UserPublicProfile, UserPrivateProfile, UserFullResponse, UserFriendViewProfile]:
+        """根據新的隱私規則獲取可見的用戶資料"""
+        viewer_id = viewer.id if viewer else None
+
+        # 規則 1: 如果是自己或管理員，返回完整資料
+        if viewer and (viewer_id == target_user.id or self.is_admin(viewer)):
+            return self._get_full_user_data(target_user)
+        
+        # 準備基礎資料
+        stats = self.social_service.get_user_social_stats(target_user.id)
+        linked_roles = [role.role.name for role in target_user.roles if role.role]
+        base_data = {
+            **target_user.__dict__,
+            **stats,
+            "linked_roles": linked_roles
+        }
+
+        # 規則 2: 如果目標用戶是公開的
+        if target_user.privacy_level == PrivacyLevel.PUBLIC:
+            return UserPublicProfile.model_validate(base_data)
+        
+        # 規則 3: 如果目標用戶是私密的
+        if target_user.privacy_level == PrivacyLevel.PRIVATE:
+            is_friend = self.social_service.is_friend(viewer.id, target_user.id) if viewer else False
+            if is_friend:
+                # 好友可以看到公開資訊 + 共同好友
+                mutual_friends = self.social_service.get_mutual_friends_count(viewer.id, target_user.id)
+                friend_data = {**base_data, "mutual_friends": mutual_friends}
+                return UserFriendViewProfile.model_validate(friend_data)
+            else:
+                # 非好友只能看到私密資訊
+                return UserPrivateProfile.model_validate(base_data)
+        
+        # 預設回退
+        return UserPrivateProfile.model_validate(base_data)
     
     def _is_user_online(self, user: User) -> bool:
         """判斷用戶是否在線（最近5分鐘有活動）"""

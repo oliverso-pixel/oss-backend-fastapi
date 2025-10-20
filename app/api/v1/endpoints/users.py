@@ -1,5 +1,5 @@
 # app/api/v1/endpoints/users.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Any, Union
 from app.core.database import get_db
@@ -12,6 +12,7 @@ from app.schemas.base import PaginationParams, PaginatedResponse
 from app.services.user_service import UserService
 from app.services.privacy_service import PrivacyService
 from app.services.social_service import SocialService
+from app.services.media_service import MediaService
 from app.models.user import User
 
 router = APIRouter()
@@ -193,6 +194,20 @@ def update_user_privacy_settings(
     db.refresh(user)
     
     return privacy_settings
+
+@router.put("/me/avatar-url", response_model=UserFullResponse)
+def update_avatar_url(
+    avatar_url: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    """更新用戶頭像 URL（用於外部 URL）"""
+    current_user.avatar_url = avatar_url
+    db.commit()
+    db.refresh(current_user)
+    
+    privacy_service = PrivacyService(db)
+    return privacy_service._get_full_user_data(current_user)
 
 # @router.get("/search/public", response_model=PaginatedResponse)
 # def search_public_users(

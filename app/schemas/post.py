@@ -1,47 +1,36 @@
 # app/schemas/post.py
 from pydantic import BaseModel, Field, field_validator, computed_field
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserPublicProfile
 from app.schemas.pet import PetResponse
 from app.models.post import Visibility
-from app.models.social import PostTag # 導入 PostTag
+from app.models.social import PostTag
+from app.schemas.user import UserPublicProfile, UserPrivateProfile, UserFriendViewProfile, UserFullResponse
+from app.schemas.comment import CommentWithRepliesResponse
 
 class PostBase(BaseSchema):
-    """貼文基礎 Schema"""
-    content: Optional[str] = Field(None, max_length=5000)
+    content: Optional[str] = None
     visibility: Visibility = Visibility.PUBLIC
-    location: Optional[str] = Field(None, max_length=255)
+    tags: Optional[List[str]] = []
+    pet_id: Optional[int] = None
+    location: Optional[str] = None
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
-    pet_id: Optional[int] = None
-    
-    @field_validator('content')
-    def content_or_media_required(cls, v, values):
-        # 至少需要內容或媒體（這個驗證會在 PostCreate 中進行）
-        return v
+    comments_enabled: bool = True
 
 class PostCreate(PostBase):
-    """創建貼文 Schema"""
-    tags: Optional[List[str]] = Field(None, max_items=10)
-    media_ids: Optional[List[int]] = Field(None, max_items=10)
-    
-    @field_validator('media_ids')
-    def validate_content_or_media(cls, v, values):
-        if 'content' in values.data and not v and not values.data.get('content'):
-            raise ValueError('Post must have either content or media')
-        return v
+    media_ids: Optional[List[int]] = []
 
 class PostUpdate(BaseSchema):
-    """更新貼文 Schema"""
-    content: Optional[str] = Field(None, max_length=5000)
+    content: Optional[str] = None
     visibility: Optional[Visibility] = None
-    location: Optional[str] = Field(None, max_length=255)
+    tags: Optional[List[str]] = None
+    location: Optional[str] = None
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
-    tags: Optional[List[str]] = Field(None, max_items=10)
-    media_ids: Optional[List[int]] = Field(None, max_items=10)
+    media_ids: Optional[List[int]] = None
 
 class MediaResponse(BaseSchema):
     """媒體響應 Schema"""
@@ -69,34 +58,34 @@ class CommentResponse(TimestampSchema):
     is_deleted: bool
     replies: Optional[List['CommentResponse']] = []
 
-class PostResponse(PostBase, TimestampSchema):
-    """貼文響應 Schema"""
+AuthorProfile = Union[UserPublicProfile, UserPrivateProfile, UserFriendViewProfile, UserFullResponse]
+
+class PostResponse(PostBase):
     id: int
     user_id: int
-    author: UserPublicProfile
-    pet: Optional[PetResponse]
-    view_count: int
+    created_at: datetime
+    updated_at: datetime
+    # 作者欄位現在可以是任何一種 AuthorProfile
+    author: AuthorProfile
+    media: Optional[List[MediaResponse]] = []
     like_count: int = 0
     comment_count: int = 0
     is_liked: bool = False
-    media: List[MediaResponse] = []
-    tags: List[TagResponse] = []
+    view_count: int = 0
     
-    @computed_field
-    @property
-    def processed_tags(self) -> List[TagResponse]:
-        if hasattr(self, 'tags') and all(isinstance(pt, PostTag) for pt in self.tags):
-             return [TagResponse.model_validate(pt.tag) for pt in self.tags]
-        return self.tags
-
     class Config:
         from_attributes = True
 
 class PostDetailResponse(PostResponse):
     """貼文詳細響應（包含評論）"""
-    comments: List[CommentResponse] = []
     user_can_edit: bool = False
     user_can_delete: bool = False
+    comments_enabled: bool = True
+    # comments: List[CommentResponse] = []
+    comments: List[CommentWithRepliesResponse] = []
+
+    class Config:
+        from_attributes = True
 
 class PostStatistics(BaseSchema):
     """貼文統計"""

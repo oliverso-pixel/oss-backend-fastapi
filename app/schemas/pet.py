@@ -51,25 +51,6 @@ class PetInDB(PetBase, TimestampSchema):
     id: int
     user_id: int
     is_active: bool
-    # age_years: Optional[float] = None
-    # age_months: Optional[int] = None
-
-# class PetResponse(PetInDB):
-#     """寵物響應 Schema"""
-#     owner_username: Optional[str] = None
-    
-#     @property
-#     def age_display(self) -> str:
-#         """顯示年齡"""
-#         if self.birth_date:
-#             today = date.today()
-#             age = today.year - self.birth_date.year - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
-#             if age >= 1:
-#                 return f"{age} 歲"
-#             else:
-#                 months = (today.year - self.birth_date.year) * 12 + today.month - self.birth_date.month
-#                 return f"{months} 個月"
-#         return "未知"
     
 class PetPrivateResponse(BaseSchema):
     """私密寵物響應 - 僅顯示基本資訊"""

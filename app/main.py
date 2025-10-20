@@ -1,5 +1,6 @@
 # app/main.py
 from fastapi import FastAPI, Request, HTTPException, status
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -111,6 +112,8 @@ def health_check():
 @app.get(f"{settings.API_V1_STR}")
 def root():
     return {"message": "歡迎使用寵物社交平台 API"}
+
+app.mount("/static", StaticFiles(directory=settings.UPLOAD_DIR), name="static")
 
 @app.on_event("startup")
 async def startup_event():
