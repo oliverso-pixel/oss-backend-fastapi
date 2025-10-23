@@ -1,5 +1,4 @@
 # app/core/exceptions.py
-
 from fastapi import HTTPException, status
 from typing import Any, Dict, Optional
 

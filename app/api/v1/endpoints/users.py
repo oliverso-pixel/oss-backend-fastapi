@@ -52,27 +52,6 @@ def get_users(
         pages=(total + pagination.per_page - 1) // pagination.per_page
     )
 
-# @router.get("/{user_id}")
-# def get_user(
-#     user_id: int,
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ) -> Any:
-#     """獲取特定用戶信息（根據隱私設置返回不同資料）"""
-#     user_service = UserService(db)
-#     privacy_service = PrivacyService(db)
-    
-#     user = user_service.get_user(user_id)
-#     if not user:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="User not found"
-#         )
-    
-#     # 根據隱私設置返回可見資料
-#     visible_data = privacy_service.get_user_visible_data(current_user, user)
-#     return visible_data
-
 @router.get("/{user_id}", response_model=Union[UserPublicProfile, UserPrivateProfile])
 def get_user(
     user_id: int,
@@ -208,33 +187,6 @@ def update_avatar_url(
     
     privacy_service = PrivacyService(db)
     return privacy_service._get_full_user_data(current_user)
-
-# @router.get("/search/public", response_model=PaginatedResponse)
-# def search_public_users(
-#     q: str,
-#     pagination: PaginationParams = Depends(),
-#     db: Session = Depends(get_db)
-# ) -> Any:
-#     """搜索公開用戶（不需要登入）"""
-#     user_service = UserService(db)
-#     privacy_service = PrivacyService(db)
-    
-#     # 調用更新後的方法，獲取用戶列表和總數
-#     users, total = user_service.search_public_users(q, pagination.skip, pagination.limit)
-    
-#     # 只返回公開資料
-#     result_items = [
-#         privacy_service._get_minimal_user_data(user) for user in users
-#     ]
-    
-#     # 使用標準化的 PaginatedResponse 返回結果
-#     return PaginatedResponse(
-#         items=result_items,
-#         total=total,  # <-- 使用從 service 層獲取的正確總數
-#         page=pagination.page,
-#         per_page=pagination.per_page,
-#         pages=(total + pagination.per_page - 1) // pagination.per_page
-#     )
 
 @router.get("/search/public", response_model=PaginatedResponse)
 def search_public_users(

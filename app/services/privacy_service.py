@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.user import User, PrivacyLevel
 from app.models.pet import Pet
 from app.models.social import Friendship, FriendshipStatus
-# from app.schemas.user import UserPublicResponse, UserPrivateProfileResponse, UserFullResponse, UserFriendViewResponse
 from app.schemas.user import UserPublicProfile, UserPrivateProfile, UserFullResponse, UserFriendViewProfile
 from app.schemas.pet import PetPublicResponse, PetPrivateResponse
 from app.services.social_service import SocialService
@@ -66,7 +65,6 @@ class PrivacyService:
             "created_at": user.created_at
         }
     
-    # def _get_full_user_data(self, user: User) -> Dict[str, Any]:
     def _get_full_user_data(self, user: User) -> UserFullResponse:
         """獲取完整的用戶資料（自己或管理員）"""
         # 獲取統計數據
@@ -100,37 +98,6 @@ class PrivacyService:
         full_data = {**user_data, **stats, "linked_roles": linked_roles}
 
         return UserFullResponse.model_validate(full_data)
-            
-        # data = {
-        #     "id": user.id,
-        #     "username": user.username,
-        #     "email": user.email,
-        #     "display_name": user.display_name,
-        #     "bio": user.bio,
-        #     "phone": user.phone,
-        #     "avatar_url": user.avatar_url,
-        #     "background_image_url":user.background_image_url,
-        #     "birth_date":user.birth_date,
-        #     "is_active": user.is_active,
-        #     "is_verified": user.is_verified,
-        #     "two_factor_enabled": user.two_factor_enabled,
-        #     "last_login_at": user.last_login_at,
-        #     "created_at": user.created_at,
-        #     "updated_at": user.updated_at,
-        #     "privacy_level": user.privacy_level.value if user.privacy_level else "public",
-        #     "show_email": user.show_email,
-        #     "show_phone": user.show_phone,
-        #     "show_online_status": user.show_online_status,
-        #     "show_last_seen": user.show_last_seen,
-        #     "roles": role_names
-        # }
-        
-        # if user.show_online_status:
-        #     data["is_online"] = self._is_user_online(user)
-
-        # return UserFullResponse.model_validate(data)
-        
-        # return data
     
     def get_user_visible_data(
         self, 

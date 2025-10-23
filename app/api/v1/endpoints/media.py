@@ -1,8 +1,8 @@
 # app/api/v1/endpoints/media.py
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Form, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List, Optional, Any, Dict
+from typing import List, Optional
 from app.core.database import get_db
 from app.core.permissions import get_current_user
 from app.models.user import User
@@ -24,9 +24,10 @@ import json
 import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ========== 用戶相關上傳 ==========
-
+    
 @router.post("/upload/user/avatar", response_model=MediaUploadResponse)
 async def upload_user_avatar(
     file: UploadFile = File(...),
@@ -38,70 +39,47 @@ async def upload_user_avatar(
     try:
         media_service = MediaService(db)
         
-        # 解析裁切資料
-        crop_info = None
+        # 處理裁切數據
+        processing_options = {}
         if crop_data:
             try:
-                crop_info = json.loads(crop_data)
-            except Exception as e:
-                print(f"Failed to parse crop data: {e}")
+                processing_options["crop"] = json.loads(crop_data)
+            except:
+                pass
         
-        # 準備處理選項
-        processing_options = {
-            "sizes": settings.IMAGE_SIZES.get("avatar", {
-                "original": (800, 800),
-                "medium": (400, 400),
-                "small": (200, 200),
-                "thumbnail": (100, 100)
-            })
+        # 設定頭像尺寸
+        processing_options["sizes"] = {
+            "original": (800, 800),
+            "large": (400, 400),
+            "medium": (200, 200),
+            "small": (100, 100),
+            "thumbnail": (50, 50)
         }
-        
-        if crop_info:
-            processing_options["crop"] = crop_info
         
         # 上傳檔案
         media = await media_service.upload_file(
             file=file,
             user_id=current_user.id,
             file_type="avatar",
+            generate_sizes=True,
             processing_options=processing_options
         )
         
-        if not media:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to upload avatar"
-            )
+        # 更新用戶頭像 - 只儲存相對路徑
+        avatar_relative_path = media.file_path  # 已經是相對路徑
         
-        # 刪除舊頭像
-        if current_user.avatar_url and current_user.avatar_url.startswith("/static/"):
-            try:
-                await _delete_old_media(current_user.avatar_url, current_user.id, db)
-            except Exception as e:
-                print(f"Failed to delete old avatar: {e}")
+        # 如果有 medium 尺寸，使用它作為預設頭像
+        if media.extra_data and "sizes" in media.extra_data:
+            if "medium" in media.extra_data["sizes"]:
+                avatar_relative_path = media.extra_data["sizes"]["medium"]
         
-        # 更新用戶頭像
-        current_user.avatar_url = media_service.get_file_url(media.file_path, "medium")
+        current_user.avatar_url = avatar_relative_path  # 儲存相對路徑
         db.commit()
         
-        # 構建響應
-        response = _build_media_response(media, media_service)
+        return _build_media_response(media, media_service)
         
-        # 確保返回響應
-        if not response:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to build response"
-            )
-        
-        return response
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        print(f"Error in upload_user_avatar: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error in upload_user_avatar: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload avatar: {str(e)}"
@@ -114,23 +92,39 @@ async def upload_user_background(
     current_user: User = Depends(get_current_user)
 ):
     """上傳用戶背景圖片"""
-    media_service = MediaService(db)
-    
-    media = await media_service.upload_file(
-        file=file,
-        user_id=current_user.id,
-        file_type="background"
-    )
-    
-    # 刪除舊背景
-    if current_user.background_image_url and current_user.background_image_url.startswith("/static/"):
-        await _delete_old_media(current_user.background_image_url, current_user.id, db)
-    
-    # 更新用戶背景
-    current_user.background_image_url = media_service.get_file_url(media.file_path, "medium")
-    db.commit()
-    
-    return _build_media_response(media, media_service)
+    try:
+        media_service = MediaService(db)
+        
+        # 設定背景圖片尺寸
+        processing_options = {
+            "sizes": {
+                "original": (1920, 1080),
+                "large": (1200, 675),
+                "medium": (800, 450)
+            }
+        }
+        
+        # 上傳檔案
+        media = await media_service.upload_file(
+            file=file,
+            user_id=current_user.id,
+            file_type="background",
+            generate_sizes=True,
+            processing_options=processing_options
+        )
+        
+        # 更新用戶背景圖片 - 只儲存相對路徑
+        current_user.background_image_url = media.file_path  # 儲存相對路徑
+        db.commit()
+        
+        return _build_media_response(media, media_service)
+        
+    except Exception as e:
+        logger.error(f"Error in upload_user_background: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload background: {str(e)}"
+        )
 
 # ========== 寵物相關上傳 ==========
 
@@ -677,44 +671,63 @@ async def get_media_statistics(
 
 # ========== 輔助函數 ==========
 
-def _build_media_response(media: Media, media_service: MediaService) -> MediaUploadResponse:
-    """構建媒體上傳響應"""
-    if not media:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create media record"
-        )
+# def _build_media_response(media: Media, media_service: MediaService) -> MediaUploadResponse:
+#     """構建媒體上傳響應"""
+#     if not media:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Failed to create media record"
+#         )
     
-    # 確保 media_type 是字串
-    media_type_value = media.media_type.value if hasattr(media.media_type, 'value') else str(media.media_type)
+#     # 確保 media_type 是字串
+#     media_type_value = media.media_type.value if hasattr(media.media_type, 'value') else str(media.media_type)
     
-    # 基本響應數據
+#     # 基本響應數據
+#     response_data = {
+#         "id": media.id,
+#         "url": media_service.get_file_url(media.file_path),
+#         "media_type": media_type_value,
+#         "file_size": media.file_size,
+#         "width": media.width,
+#         "height": media.height,
+#         "duration": media.duration
+#     }
+    
+#     # 添加縮圖 URL（如果存在）
+#     if media.media_type == MediaType.IMAGE:
+#         if media.thumbnail_path:
+#             response_data["thumbnail_url"] = media_service.get_file_url(media.thumbnail_path)
+#         else:
+#             response_data["thumbnail_url"] = media_service.get_file_url(media.file_path, "thumbnail")
+    
+#     # 添加不同尺寸的 URL
+#     sizes = {}
+#     if media.extra_data and "sizes" in media.extra_data:
+#         for size_name in ["original", "medium", "small", "thumbnail"]:
+#             if size_name in media.extra_data["sizes"]:
+#                 sizes[size_name] = media_service.get_file_url(media.file_path, size_name)
+    
+#     if sizes:
+#         response_data["sizes"] = sizes
+    
+#     return MediaUploadResponse(**response_data)
+
+def _build_media_response(media, media_service: MediaService) -> MediaUploadResponse:
+    """構建媒體響應 - 使用相對路徑"""
     response_data = {
         "id": media.id,
-        "url": media_service.get_file_url(media.file_path),
-        "media_type": media_type_value,
+        "url": media.file_path,  # 傳遞相對路徑，由 Schema 轉換
+        "thumbnail_url": media.thumbnail_path,  # 傳遞相對路徑
+        "media_type": media.media_type.value,
         "file_size": media.file_size,
         "width": media.width,
         "height": media.height,
         "duration": media.duration
     }
     
-    # 添加縮圖 URL（如果存在）
-    if media.media_type == MediaType.IMAGE:
-        if media.thumbnail_path:
-            response_data["thumbnail_url"] = media_service.get_file_url(media.thumbnail_path)
-        else:
-            response_data["thumbnail_url"] = media_service.get_file_url(media.file_path, "thumbnail")
-    
-    # 添加不同尺寸的 URL
-    sizes = {}
+    # 處理不同尺寸的 URL
     if media.extra_data and "sizes" in media.extra_data:
-        for size_name in ["original", "medium", "small", "thumbnail"]:
-            if size_name in media.extra_data["sizes"]:
-                sizes[size_name] = media_service.get_file_url(media.file_path, size_name)
-    
-    if sizes:
-        response_data["sizes"] = sizes
+        response_data["sizes"] = media.extra_data["sizes"]  # 傳遞相對路徑
     
     return MediaUploadResponse(**response_data)
 

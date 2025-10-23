@@ -1,9 +1,10 @@
 # app/schemas/media.py
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, validator
 from typing import Optional, Dict, List, Any
 from datetime import datetime
 from enum import Enum
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.core.config import settings
 
 class MediaType(str, Enum):
     IMAGE = "image"
@@ -41,6 +42,52 @@ class MediaResponse(MediaBase, TimestampSchema):
     duration: Optional[int] = None
     is_processed: bool
     folder_type: Optional[str] = None
+
+    @validator('url', pre=True, always=True)
+    def build_url(cls, v, values):
+        """將相對路徑轉換為完整 URL"""
+        if not v:
+            return None
+        
+        # 如果已經是完整 URL，直接返回
+        if isinstance(v, str) and v.startswith(('http://', 'https://')):
+            return v
+            
+        # 從 file_path 建構 URL
+        if 'file_path' in values:
+            return cls._build_full_url(values['file_path'])
+        
+        return cls._build_full_url(v)
+    
+    @validator('thumbnail_url', pre=True, always=True)
+    def build_thumbnail_url(cls, v, values):
+        """將相對路徑轉換為完整 URL"""
+        if not v:
+            return None
+            
+        # 如果已經是完整 URL，直接返回
+        if isinstance(v, str) and v.startswith(('http://', 'https://')):
+            return v
+            
+        # 從 thumbnail_path 建構 URL
+        if 'thumbnail_path' in values and values['thumbnail_path']:
+            return cls._build_full_url(values['thumbnail_path'])
+        
+        return cls._build_full_url(v) if v else None
+    
+    @staticmethod
+    def _build_full_url(path: str) -> str:
+        """建構完整 URL"""
+        if not path:
+            return None
+            
+        # 清理路徑
+        clean_path = path.strip('/')
+        if clean_path.startswith('static/'):
+            clean_path = clean_path[7:]
+        
+        base_url = settings.BASE_URL.rstrip('/')
+        return f"{base_url}/static/{clean_path}"
     
     class Config:
         from_attributes = True
@@ -68,6 +115,55 @@ class MediaUploadResponse(BaseSchema):
     sizes: Optional[Dict[str, str]] = Field(default_factory=dict, description="不同尺寸的URL")
     temp_path: Optional[str] = Field(None, description="臨時檔案路徑")
     expires_in: Optional[int] = Field(None, description="臨時檔案過期時間（秒）")
+
+    @validator('url', pre=True, always=True)
+    def build_url(cls, v):
+        """將相對路徑轉換為完整 URL"""
+        if not v:
+            return None
+        
+        if isinstance(v, str) and v.startswith(('http://', 'https://')):
+            return v
+            
+        return cls._build_full_url(v)
+    
+    @validator('thumbnail_url', pre=True, always=True)
+    def build_thumbnail_url(cls, v):
+        """將相對路徑轉換為完整 URL"""
+        if not v:
+            return None
+            
+        if isinstance(v, str) and v.startswith(('http://', 'https://')):
+            return v
+            
+        return cls._build_full_url(v)
+    
+    @validator('sizes', pre=True, always=True)
+    def build_sizes_urls(cls, v):
+        """將 sizes 中的相對路徑轉換為完整 URL"""
+        if not v:
+            return {}
+            
+        result = {}
+        for size_name, path in v.items():
+            if path:
+                result[size_name] = cls._build_full_url(path)
+        
+        return result
+    
+    @staticmethod
+    def _build_full_url(path: str) -> str:
+        """建構完整 URL"""
+        if not path:
+            return None
+            
+        # 清理路徑
+        clean_path = path.strip('/')
+        if clean_path.startswith('static/'):
+            clean_path = clean_path[7:]
+        
+        base_url = settings.BASE_URL.rstrip('/')
+        return f"{base_url}/static/{clean_path}"
     
     class Config:
         from_attributes = True

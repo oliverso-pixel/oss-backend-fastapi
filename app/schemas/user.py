@@ -1,12 +1,14 @@
 # app/schemas/user.py
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, validator
 from typing import Optional, List
 from datetime import date, datetime
 from app.schemas.base import BaseSchema
+from app.schemas.mixins import URLFieldMixin
 from app.models.user import PrivacyLevel
+from app.core.config import settings
 import re
 
-class UserBase(BaseSchema):
+class UserBase(BaseSchema, URLFieldMixin):
     """用戶基礎 Schema"""
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
@@ -14,6 +16,10 @@ class UserBase(BaseSchema):
     bio: Optional[str] = None
     phone: Optional[str] = Field(None, max_length=20)
     avatar_url: Optional[str] = None
+    background_image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class UserCreate(UserBase):
     """創建用戶 Schema"""
@@ -38,7 +44,7 @@ class UserCreate(UserBase):
             raise ValueError('Password must be at least 8 characters')
         return v
 
-class UserUpdate(BaseSchema):
+class UserUpdate(BaseSchema, URLFieldMixin):
     """更新用戶 Schema"""
     display_name: Optional[str] = Field(None, max_length=100)
     bio: Optional[str] = None
@@ -52,13 +58,16 @@ class UserUpdate(BaseSchema):
     show_online_status: Optional[bool] = None
     show_last_seen: Optional[bool] = None
 
+    class Config:
+        from_attributes = True
+
 class UserProfileStats(BaseSchema):
     """用戶個人資料頁面的統計數據"""
     total_posts: int
     total_following: int
     total_followers: int
 
-class UserProfileBase(BaseSchema):
+class UserProfileBase(BaseSchema, URLFieldMixin):
     """所有個人資料視圖的基礎"""
     id: int
     username: str
@@ -68,6 +77,9 @@ class UserProfileBase(BaseSchema):
     bio: Optional[str]
     privacy_level: PrivacyLevel
     linked_roles: List[str]
+
+    class Config:
+        from_attributes = True
 
 class UserPrivateProfile(UserProfileBase, UserProfileStats):
     """非好友看到的私密用戶資料"""

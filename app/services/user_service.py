@@ -110,27 +110,6 @@ class UserService:
         """檢查用戶是否為超級用戶"""
         return any(role.role.name == "admin" for role in user.roles)
     
-    # def search_public_users(self, q: str, skip: int, limit: int) -> Tuple[List[User], int]:
-    #     """搜索公開用戶"""
-    #     # 基礎查詢，只查找活躍且隱私設置為 PUBLIC 的用戶
-    #     query = self.db.query(User).filter(
-    #         User.is_active == True,
-    #         User.privacy_level == PrivacyLevel.PUBLIC
-    #     )
-
-    #     # 應用搜索過濾條件
-    #     query = query.filter(
-    #         User.username.ilike(f"%{q}%")
-    #     )
-
-    #     # 首先計算總數（在應用分頁之前）
-    #     total = query.count()
-
-    #     # 然後應用分頁和排序
-    #     users = query.order_by(User.username).offset(skip).limit(limit).all()
-
-    #     return users, total
-    
     def search_public_users(self, q: str, skip: int, limit: int) -> Tuple[List[User], int]:
         """搜索所有用戶（已移除隱私過濾）"""
         # 基礎查詢，只查找活躍用戶

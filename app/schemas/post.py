@@ -5,6 +5,7 @@ from datetime import datetime
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserPublicProfile
 from app.schemas.pet import PetResponse
+from app.schemas.mixins import URLFieldMixin
 from app.models.post import Visibility
 from app.models.social import PostTag
 from app.schemas.user import UserPublicProfile, UserPrivateProfile, UserFriendViewProfile, UserFullResponse
@@ -32,7 +33,7 @@ class PostUpdate(BaseSchema):
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     media_ids: Optional[List[int]] = None
 
-class MediaResponse(BaseSchema):
+class MediaResponse(BaseSchema, URLFieldMixin):
     """媒體響應 Schema"""
     id: int
     file_path: str
@@ -42,6 +43,9 @@ class MediaResponse(BaseSchema):
     height: Optional[int]
     duration: Optional[int]
     display_order: int
+
+    class Config:
+        from_attributes = True
 
 class TagResponse(TimestampSchema):
     """標籤響應 Schema"""

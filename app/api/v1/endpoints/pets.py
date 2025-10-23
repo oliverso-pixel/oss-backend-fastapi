@@ -52,13 +52,6 @@ def get_my_pets(
         skip=pagination.skip,
         limit=pagination.limit
     )
-    
-    # 轉換為響應格式
-    # pet_responses = []
-    # for pet in pets:
-    #     response = PetResponse.model_validate(pet)
-    #     response.owner_username = current_user.username
-    #     pet_responses.append(response)
 
     pet_responses = [PetResponse.model_validate(pet) for pet in pets]
     

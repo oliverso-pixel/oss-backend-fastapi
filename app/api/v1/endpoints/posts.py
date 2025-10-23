@@ -455,39 +455,6 @@ def unlike_post(
 
 # === 評論功能 ===
 
-# def build_comment_response(comment: Comment, viewer: User, db: Session) -> CommentResponse:
-#     """從資料庫物件建立 CommentResponse"""
-#     privacy_service = PrivacyService(db)
-    
-#     # 獲取評論者的可見資料
-#     user_data = privacy_service.get_user_visible_data(
-#         viewer=viewer,
-#         target_user=comment.user
-#     )
-    
-#     # 處理回覆（如果有的話）
-#     replies_data = []
-#     if hasattr(comment, 'replies') and comment.replies:
-#         for reply in comment.replies:
-#             if not reply.is_deleted:  # 不顯示已刪除的回覆
-#                 reply_data = build_comment_response(reply, viewer, db)
-#                 replies_data.append(reply_data)
-    
-#     response_data = {
-#         "id": comment.id,
-#         "post_id": comment.post_id,
-#         "user_id": comment.user_id,
-#         "parent_id": comment.parent_id,
-#         "content": comment.content,
-#         "is_deleted": comment.is_deleted,
-#         "created_at": comment.created_at,
-#         "updated_at": comment.updated_at,
-#         "user": user_data.model_dump(),
-#         "replies": replies_data  # 如果 schema 包含 replies
-#     }
-    
-#     return CommentResponse.model_validate(response_data)
-
 def build_comment_response(comment: Comment, viewer: User, db: Session) -> CommentResponse:
     """從資料庫物件建立 CommentResponse"""
     privacy_service = PrivacyService(db)
@@ -549,31 +516,6 @@ def build_comment_response(comment: Comment, viewer: User, db: Session) -> Comme
     
     return CommentResponse.model_validate(response_data)
 
-# @router.post("/{post_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
-# def add_comment(
-#     post_id: int,
-#     content: str = Query(..., min_length=1, max_length=1000),
-#     parent_id: Optional[int] = Query(None, description="Parent comment ID for replies"),
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ) -> Any:
-#     """新增評論"""
-#     post_service = PostService(db)
-#     comment = post_service.add_comment(
-#         post_id=post_id,
-#         user_id=current_user.id,
-#         content=content,
-#         parent_id=parent_id
-#     )
-    
-#     if not comment:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Post or parent comment not found"
-#         )
-    
-#     return CommentResponse.model_validate(comment)
-
 @router.post("/{post_id}/comments", response_model=CommentResponse)
 def add_comment(
     post_id: int,
@@ -612,32 +554,6 @@ def delete_comment(
         )
 
 # === 用戶貼文 ===
-
-# @router.get("/users/{user_id}/posts", response_model=PaginatedResponse)
-# def get_user_posts(
-#     user_id: int,
-#     pagination: PaginationParams = Depends(),
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ) -> Any:
-#     """獲取指定用戶的貼文"""
-#     post_service = PostService(db)
-#     posts, total = post_service.get_user_posts(
-#         user_id=user_id,
-#         viewer=current_user,
-#         skip=pagination.skip,
-#         limit=pagination.limit
-#     )
-    
-#     items = [build_post_response(p, current_user, db) for p in posts]
-    
-#     return PaginatedResponse(
-#         items=items,
-#         total=total,
-#         page=pagination.page,
-#         per_page=pagination.per_page,
-#         pages=(total + pagination.per_page - 1) // pagination.per_page
-#     )
 
 @router.get("/users/{user_id}/posts", response_model=PaginatedResponse)
 def get_user_posts(
@@ -766,58 +682,4 @@ def get_comments(
                 parent.replies.append(child)
     
     return root_comments
-
-# === 媒體上傳（配合貼文使用）===
-
-# @router.post("/media/upload", response_model=dict)
-# async def upload_post_media(
-#     file: UploadFile = File(...),
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ) -> Any:
-#     """上傳貼文媒體檔案"""
-#     # 檢查文件類型
-#     allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/mpeg"]
-#     if file.content_type not in allowed_types:
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail=f"File type not allowed. Allowed types: {', '.join(allowed_types)}"
-#         )
-    
-#     # 檢查文件大小
-#     max_size = 100 * 1024 * 1024  # 100MB
-#     if file.size > max_size:
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail=f"File too large. Maximum size: {max_size // (1024*1024)}MB"
-#         )
-    
-#     media_service = MediaService(db)
-    
-#     try:
-#         if file.content_type.startswith("image/"):
-#             media = await media_service.upload_image(
-#                 file=file,
-#                 user_id=current_user.id,
-#                 folder="posts"
-#             )
-#         else:
-#             # TODO: 實現影片上傳
-#             raise HTTPException(
-#                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
-#                 detail="Video upload not yet implemented"
-#             )
-        
-#         return {
-#             "media_id": media.id,
-#             "file_path": media.file_path,
-#             "thumbnail_path": media.thumbnail_path,
-#             "media_type": media.media_type.value
-#         }
-        
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Failed to upload media: {str(e)}"
-#         )
 

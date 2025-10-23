@@ -1,5 +1,4 @@
 # app/middleware/error_handler.py
-
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -26,3 +25,4 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={"detail": "Internal server error"}
             )
+        

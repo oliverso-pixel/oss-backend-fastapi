@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = Field(default=10080, env="REFRESH_TOKEN_EXPIRE_MINUTES")  # 7 天
 
     # 檔案上傳設定
+    STATIC_DIR: str = Field(default="static", env="STATIC_DIR")
     UPLOAD_DIR: str = Field(default="/mnt/www/html/oss", env="UPLOAD_DIR")
     BASE_UPLOAD_PATH: str = Field(default="/mnt/www/html/oss", env="BASE_UPLOAD_PATH")
     
@@ -35,7 +36,8 @@ class Settings(BaseSettings):
     ALLOWED_VIDEO_TYPES: List[str] = ["video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo"]
 
     # URL 設定
-    BASE_URL: str = Field(default="http://192.168.50.103", env="BASE_URL")
+    # BASE_URL: str = Field(default="http://192.168.50.103", env="BASE_URL")
+    BASE_URL: str = Field(default="http://124.244.244.26:10380", env="BASE_URL")
     CDN_URL: Optional[str] = Field(default=None, env="CDN_URL")
 
     # 用戶儲存空間限制 (MB)
@@ -108,16 +110,17 @@ class Settings(BaseSettings):
 
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"],
+        default=["http://localhost:3000", "http://localhost:8000", "http://124.244.244.26:16231"],
         env="BACKEND_CORS_ORIGINS"
     )
 
     class Config:
         env_file = ".env"
+        from_attributes = True
 
 @lru_cache()
 def get_settings():
     return Settings()
 
-settings = Settings()
+settings = get_settings()
 

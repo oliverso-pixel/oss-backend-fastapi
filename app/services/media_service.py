@@ -18,270 +18,11 @@ class MediaService:
     def __init__(self, db: Session):
         self.db = db
         self.upload_dir = Path(settings.UPLOAD_DIR)
-        self.base_path = Path(settings.BASE_UPLOAD_PATH)
-        # self.base_path = self.upload_dir
+        self.static_dir = Path(settings.STATIC_DIR)
+        # self.base_path = Path(settings.BASE_UPLOAD_PATH)
+        self.base_path = self.upload_dir
         self._ensure_directories()
-    
-    async def upload_image(self, file: UploadFile, user_id: int, 
-                          folder: str = "images") -> Media:
-        """上傳圖片"""
-        # 驗證檔案類型
-        if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File type not allowed. Allowed types: {', '.join(settings.ALLOWED_IMAGE_TYPES)}"
-            )
-        
-        # 驗證檔案大小
-        if file.size > settings.MAX_UPLOAD_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File too large. Maximum size: {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB"
-            )
-        
-        # 生成唯一文件名
-        ext = file.filename.split(".")[-1].lower()
-        filename = f"{uuid.uuid4()}.{ext}"
-        
-        # 創建目錄結構
-        date_path = datetime.now().strftime("%Y/%m/%d")
-        relative_path = f"{folder}/{date_path}/{filename}"
-        full_path = self.upload_dir / relative_path
-        
-        # 確保目錄存在
-        full_path.parent.mkdir(parents=True, exist_ok=True)
 
-        try:
-            # 保存原始圖片
-            content = await file.read()
-            async with aiofiles.open(str(full_path), 'wb') as f:
-                await f.write(content)
-            
-            # 獲取圖片尺寸
-            width, height = 0, 0
-            thumbnail_relative_path = None
-            
-            with Image.open(full_path) as img:
-                width, height = img.size
-                
-                # 創建縮略圖（同步操作）
-                thumbnail_relative_path = self._create_thumbnail_sync(img, full_path, relative_path)
-            
-            # 創建媒體記錄
-            media = Media(
-                user_id=user_id,
-                file_path=str(relative_path),
-                file_name=file.filename,
-                file_size=len(content),
-                mime_type=file.content_type,
-                media_type=MediaType.IMAGE,
-                width=width,
-                height=height,
-                thumbnail_path=thumbnail_relative_path,
-                is_processed=True
-            )
-            
-            self.db.add(media)
-            self.db.commit()
-            self.db.refresh(media)
-            
-            return media
-            
-        except Exception as e:
-            # 清理已上傳的檔案
-            if full_path.exists():
-                full_path.unlink()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to upload image: {str(e)}"
-            )
-        
-        # # 保存原始圖片
-        # content = await file.read()
-        # with open(full_path, "wb") as f:
-        #     f.write(content)
-        
-        # # 獲取圖片尺寸
-        # with Image.open(full_path) as img:
-        #     width, height = img.size
-            
-        #     # 創建縮略圖
-        #     thumbnail_path = self._create_thumbnail(img, full_path)
-        
-        # # 創建媒體記錄
-        # media = Media(
-        #     user_id=user_id,
-        #     file_path=relative_path,
-        #     file_name=file.filename,
-        #     file_size=len(content),
-        #     mime_type=file.content_type,
-        #     media_type=MediaType.IMAGE,
-        #     width=width,
-        #     height=height,
-        #     thumbnail_path=thumbnail_path,
-        #     is_processed=True
-        # )
-        
-        # self.db.add(media)
-        # self.db.commit()
-        # self.db.refresh(media)
-        
-        # return media
-    
-    # def _create_thumbnail(self, img: Image.Image, original_path: Path, 
-    #                      size: tuple = (200, 200)) -> str:
-    #     """創建縮略圖"""
-    #     try:
-    #         # 生成縮略圖路徑
-    #         thumb_dir = original_path.parent / "thumbnails"
-    #         thumb_dir.mkdir(exist_ok=True)
-            
-    #         thumb_filename = f"thumb_{original_path.name}"
-    #         thumb_path = thumb_dir / thumb_filename
-            
-    #         # 創建縮略圖
-    #         img_copy = img.copy()
-    #         img_copy.thumbnail(size, Image.Resampling.LANCZOS)
-    #         img_copy.save(thumb_path, quality=85, optimize=True)
-            
-    #         # 返回相對路徑
-    #         return str(thumb_path.relative_to(self.upload_dir))
-    #     except Exception as e:
-    #         print(f"Failed to create thumbnail: {str(e)}")
-    #         return None
-
-    def _create_thumbnail_sync(self, img: Image.Image, original_path: Path, 
-                              original_relative_path: str, size: tuple = (200, 200)) -> Optional[str]:
-        """同步創建縮略圖"""
-        try:
-            # 生成縮略圖路徑
-            thumb_dir = original_path.parent / "thumbnails"
-            thumb_dir.mkdir(exist_ok=True)
-            
-            thumb_filename = f"thumb_{original_path.name}"
-            thumb_path = thumb_dir / thumb_filename
-            
-            # 創建縮略圖
-            img_copy = img.copy()
-            
-            # 如果是 RGBA，轉換為 RGB
-            if img_copy.mode in ('RGBA', 'P'):
-                rgb_img = Image.new('RGB', img_copy.size, (255, 255, 255))
-                if img_copy.mode == 'RGBA':
-                    rgb_img.paste(img_copy, mask=img_copy.split()[-1])
-                else:
-                    rgb_img.paste(img_copy)
-                img_copy = rgb_img
-            
-            img_copy.thumbnail(size, Image.Resampling.LANCZOS)
-            img_copy.save(str(thumb_path), quality=85, optimize=True)
-            
-            # 構建相對路徑
-            thumb_relative = str(thumb_path.relative_to(self.upload_dir))
-            return thumb_relative
-            
-        except Exception as e:
-            print(f"Failed to create thumbnail: {str(e)}")
-            return None
-        
-    async def delete_media(self, media_id: int, user_id: int) -> bool:
-        """刪除媒體檔案"""
-        media = self.db.query(Media).filter(
-            Media.id == media_id,
-            Media.user_id == user_id
-        ).first()
-        
-        if not media:
-            return False
-        
-        # 刪除實體檔案
-        if media.file_path:
-            file_path = self.upload_dir / media.file_path
-            if file_path.exists():
-                file_path.unlink()
-        
-        # 刪除縮略圖
-        if media.thumbnail_path:
-            thumb_path = self.upload_dir / media.thumbnail_path
-            if thumb_path.exists():
-                thumb_path.unlink()
-        
-        # 刪除資料庫記錄
-        self.db.delete(media)
-        self.db.commit()
-        
-        return True
-
-    async def upload_post_media(self, files: List[UploadFile], user_id: int) -> List[Media]:
-        """批量上傳貼文媒體"""
-        media_list = []
-        
-        for file in files:
-            if file.content_type.startswith("image/"):
-                media = await self.upload_image(file, user_id, "posts")
-            elif file.content_type.startswith("video/"):
-                media = await self.upload_video(file, user_id, "posts")
-            else:
-                continue
-            
-            media_list.append(media)
-        
-        return media_list
-
-    async def upload_video(self, file: UploadFile, user_id: int, 
-                        folder: str = "videos") -> Media:
-        """上傳影片"""
-        # 生成唯一文件名
-        ext = file.filename.split(".")[-1]
-        filename = f"{uuid.uuid4()}.{ext}"
-        
-        # 創建目錄結構
-        date_path = datetime.now().strftime("%Y/%m/%d")
-        relative_path = f"{folder}/{date_path}/{filename}"
-        full_path = self.upload_dir / relative_path
-        
-        # 確保目錄存在
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # 保存原始影片
-        content = await file.read()
-        with open(full_path, "wb") as f:
-            f.write(content)
-        
-        # TODO: 使用 ffmpeg 獲取影片資訊和生成縮圖
-        # 這裡是簡化版本
-        
-        # 創建媒體記錄
-        media = Media(
-            user_id=user_id,
-            file_path=relative_path,
-            file_name=file.filename,
-            file_size=len(content),
-            mime_type=file.content_type,
-            media_type=MediaType.VIDEO,
-            is_processed=False  # 影片需要後續處理
-        )
-        
-        self.db.add(media)
-        self.db.commit()
-        self.db.refresh(media)
-        
-        return media
-
-    def get_media_by_ids(self, media_ids: List[int], user_id: int) -> List[Media]:
-        """根據ID列表獲取媒體檔案"""
-        return self.db.query(Media).filter(
-            Media.id.in_(media_ids),
-            Media.user_id == user_id
-        ).all()
-
-    def get_media_url(self, file_path: str) -> str:
-            """獲取媒體檔案的完整 URL"""
-            if file_path:
-                return f"/static/{file_path}"
-            return None
-
-    # for new
     def _ensure_directories(self):
         """確保所有必要的目錄存在"""
         directories = [
@@ -292,6 +33,79 @@ class MediaService:
         for dir_path in directories:
             full_path = self.base_path / dir_path
             full_path.mkdir(parents=True, exist_ok=True)
+
+    def get_file_url(self, file_path: str, size: Optional[str] = None) -> str:
+        """獲取檔案 URL"""
+        if not file_path:
+            return None
+        
+        # 如果已經是完整 URL（外部連結），直接返回
+        if file_path.startswith(('http://', 'https://')):
+            return file_path
+        
+        # 清理路徑
+        clean_path = self._clean_path(file_path)
+        
+        # 如果有 CDN，使用 CDN URL
+        # base_url = settings.CDN_URL or settings.BASE_URL
+        
+        if size and size != 'original':
+            clean_path = self._get_sized_path(clean_path, size)
+        
+        # 組合完整 URL
+        base_url = settings.BASE_URL.rstrip('/')
+        return f"{base_url}/static/{clean_path}"
+    
+    def get_relative_path(self, full_path: str) -> str:
+        """從完整路徑提取相對路徑"""
+        if isinstance(full_path, Path):
+            full_path = str(full_path)
+            
+        # 移除 BASE_URL
+        if full_path.startswith(settings.BASE_URL):
+            full_path = full_path[len(settings.BASE_URL):].lstrip('/')
+            
+        # 移除 /static/ 前綴
+        if full_path.startswith('/static/'):
+            return full_path[8:]
+        elif full_path.startswith('static/'):
+            return full_path[7:]
+            
+        # 如果是絕對路徑，轉換為相對於 static 目錄的路徑
+        try:
+            path = Path(full_path)
+            if path.is_absolute():
+                relative = path.relative_to(self.static_dir)
+                # return str(relative)
+                return str(relative).replace('\\', '/')  # 確保使用正斜線
+        except:
+            pass
+            
+        return full_path
+    
+    def _clean_path(self, path: str) -> str:
+        """清理路徑，移除不必要的前綴"""
+        clean_path = path.strip('/')
+        
+        # 移除 static/ 前綴
+        if clean_path.startswith('static/'):
+            clean_path = clean_path[7:]
+        
+        # 移除 uploads/ 前綴（如果路徑以 uploads 開頭）
+        if clean_path.startswith('uploads/'):
+            clean_path = clean_path[8:]
+            
+        return clean_path
+    
+    def _get_sized_path(self, path: str, size: str) -> str:
+        """獲取指定尺寸的檔案路徑"""
+        path_parts = Path(path).parts
+        if len(path_parts) >= 2:
+            # 插入尺寸目錄
+            # 例如: avatars/1/file.jpg -> avatars/1/medium/file.jpg
+            new_parts = list(path_parts[:-1]) + [size] + [path_parts[-1]]
+            return str(Path(*new_parts)).replace('\\', '/')
+        return path
     
     async def upload_file(
         self, 
@@ -332,6 +146,126 @@ class MediaService:
         )
         
         return media
+    
+    def _create_media_record(
+        self,
+        user_id: int,
+        file_info: Dict[str, str],
+        file_size: int,
+        mime_type: str,
+        processed_info: Dict[str, any]
+    ) -> Media:
+        """創建媒體記錄"""
+        try:
+            # 判斷媒體類型
+            if mime_type.startswith("video/"):
+                media_type = MediaType.VIDEO
+            elif mime_type.startswith("image/"):
+                media_type = MediaType.IMAGE
+            elif mime_type.startswith("audio/"):
+                media_type = MediaType.AUDIO
+            else:
+                media_type = MediaType.DOCUMENT
+
+            # 確保路徑是相對路徑
+            relative_path = self.get_relative_path(file_info['relative_path'])
+            thumbnail_path = None
+            if processed_info.get("thumbnail"):
+                thumbnail_path = self.get_relative_path(processed_info["thumbnail"])
+            
+            # 處理 sizes 中的路徑
+            if processed_info.get("sizes"):
+                for size_name, size_path in processed_info["sizes"].items():
+                    processed_info["sizes"][size_name] = self.get_relative_path(size_path)
+            
+            media = Media(
+                user_id=user_id,
+                file_path=relative_path,
+                file_name=file_info['filename'],
+                file_size=file_size,
+                mime_type=mime_type,
+                media_type=media_type,
+                width=processed_info.get("width"),
+                height=processed_info.get("height"),
+                duration=processed_info.get("duration"),
+                thumbnail_path=thumbnail_path,
+                is_processed=True,
+                extra_data=processed_info,  # 保存所有處理資訊
+                folder_type=file_info.get('folder_type', 'general')
+            )
+            
+            self.db.add(media)
+            self.db.commit()
+            self.db.refresh(media)
+            
+            return media
+            
+        except Exception as e:
+            self.db.rollback()
+            print(f"Error creating media record: {str(e)}")
+            raise
+
+    async def _process_image(
+        self, 
+        image_path: Path, 
+        file_type: str,
+        generate_sizes: bool,
+        processing_options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, any]:
+        """處理圖片檔案"""
+        info = {"sizes": {}}
+        
+        with Image.open(image_path) as img:
+            info["width"] = img.width
+            info["height"] = img.height
+            info["format"] = img.format
+            
+            # 處理裁切（如果提供了裁切資訊）
+            if processing_options and processing_options.get("crop"):
+                crop_data = processing_options["crop"]
+                img = self._crop_image(img, crop_data)
+                # 保存裁切後的圖片
+                img.save(image_path, quality=95)
+                info["width"] = img.width
+                info["height"] = img.height
+            
+            # 使用提供的尺寸或默認尺寸
+            if processing_options and "sizes" in processing_options:
+                sizes_config = processing_options["sizes"]
+            elif generate_sizes and file_type in settings.IMAGE_SIZES:
+                sizes_config = settings.IMAGE_SIZES[file_type]
+            else:
+                sizes_config = None
+            
+            if sizes_config:
+                base_dir = image_path.parent
+                base_name = image_path.stem
+                
+                for size_name, dimensions in sizes_config.items():
+                    if size_name == "original":
+                        # 優化原圖
+                        self._optimize_image(img, image_path, dimensions)
+                        relative_path = str(image_path.relative_to(self.static_dir)).replace('\\', '/')
+                        info["sizes"]["original"] = relative_path
+                    else:
+                        # 生成不同尺寸
+                        size_dir = base_dir / size_name
+                        size_dir.mkdir(exist_ok=True)
+                        size_path = size_dir / f"{base_name}_{size_name}{image_path.suffix}"
+                        
+                        resized = self._resize_image(img, dimensions)
+                        resized.save(size_path, quality=85, optimize=True)
+                        
+                        relative_path = str(size_path.relative_to(self.static_dir)).replace('\\', '/')
+                        info["sizes"][size_name] = relative_path
+        
+        return info
+    
+    def get_media_url(self, file_path: str) -> str:
+        """獲取媒體檔案的完整 URL"""
+        if file_path:
+            return f"/static/{file_path}"
+        return None
     
     def _validate_file(self, file: UploadFile, file_type: str):
         """驗證檔案類型和大小"""
@@ -446,60 +380,6 @@ class MediaService:
         
         return processed_info
     
-    async def _process_image(
-        self, 
-        image_path: Path, 
-        file_type: str,
-        generate_sizes: bool,
-        processing_options: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, any]:
-        """處理圖片檔案"""
-        info = {"sizes": {}}
-        
-        with Image.open(image_path) as img:
-            info["width"] = img.width
-            info["height"] = img.height
-            info["format"] = img.format
-            
-            # 處理裁切（如果提供了裁切資訊）
-            if processing_options and processing_options.get("crop"):
-                crop_data = processing_options["crop"]
-                img = self._crop_image(img, crop_data)
-                # 保存裁切後的圖片
-                img.save(image_path, quality=95)
-                info["width"] = img.width
-                info["height"] = img.height
-            
-            # 使用提供的尺寸或默認尺寸
-            if processing_options and "sizes" in processing_options:
-                sizes_config = processing_options["sizes"]
-            elif generate_sizes and file_type in settings.IMAGE_SIZES:
-                sizes_config = settings.IMAGE_SIZES[file_type]
-            else:
-                sizes_config = None
-            
-            if sizes_config:
-                base_dir = image_path.parent
-                base_name = image_path.stem
-                
-                for size_name, dimensions in sizes_config.items():
-                    if size_name == "original":
-                        # 優化原圖
-                        self._optimize_image(img, image_path, dimensions)
-                        info["sizes"]["original"] = str(image_path.relative_to(self.base_path))
-                    else:
-                        # 生成不同尺寸
-                        size_dir = base_dir / size_name
-                        size_dir.mkdir(exist_ok=True)
-                        size_path = size_dir / f"{base_name}_{size_name}{image_path.suffix}"
-                        
-                        resized = self._resize_image(img, dimensions)
-                        resized.save(size_path, quality=85, optimize=True)
-                        
-                        info["sizes"][size_name] = str(size_path.relative_to(self.base_path))
-        
-        return info
-    
     def _resize_image(self, img: Image.Image, max_size: Tuple[int, int]) -> Image.Image:
         """調整圖片大小"""
         # 保持比例縮放
@@ -579,70 +459,6 @@ class MediaService:
         
         return None
     
-    def _create_media_record(
-        self,
-        user_id: int,
-        file_info: Dict[str, str],
-        file_size: int,
-        mime_type: str,
-        processed_info: Dict[str, any]
-    ) -> Media:
-        """創建媒體記錄"""
-        try:
-            # 判斷媒體類型
-            if mime_type.startswith("video/"):
-                media_type = MediaType.VIDEO
-            elif mime_type.startswith("image/"):
-                media_type = MediaType.IMAGE
-            elif mime_type.startswith("audio/"):
-                media_type = MediaType.AUDIO
-            else:
-                media_type = MediaType.DOCUMENT
-            
-            media = Media(
-                user_id=user_id,
-                file_path=file_info['relative_path'],
-                file_name=file_info['filename'],
-                file_size=file_size,
-                mime_type=mime_type,
-                media_type=media_type,
-                width=processed_info.get("width"),
-                height=processed_info.get("height"),
-                duration=processed_info.get("duration"),
-                thumbnail_path=processed_info.get("thumbnail"),
-                is_processed=True,
-                extra_data=processed_info,  # 保存所有處理資訊
-                folder_type=file_info.get('folder_type', 'general')
-            )
-            
-            self.db.add(media)
-            self.db.commit()
-            self.db.refresh(media)
-            
-            return media
-            
-        except Exception as e:
-            self.db.rollback()
-            print(f"Error creating media record: {str(e)}")
-            raise
-    
-    def get_file_url(self, file_path: str, size: Optional[str] = None) -> str:
-        """獲取檔案 URL"""
-        if not file_path:
-            return None
-        
-        # 如果有 CDN，使用 CDN URL
-        base_url = settings.CDN_URL or settings.BASE_URL
-        
-        # 如果指定了尺寸，嘗試獲取對應尺寸的檔案
-        if size and size != "original":
-            path_obj = Path(file_path)
-            size_path = path_obj.parent / size / f"{path_obj.stem}_{size}{path_obj.suffix}"
-            if (self.base_path / size_path).exists():
-                return f"{base_url}/static/{size_path}"
-        
-        return f"{base_url}/static/{file_path}"
-    
     def _get_file_category(self, mime_type: str) -> str:
         """根據 MIME 類型判斷檔案分類"""
         if mime_type.startswith("image/"):
@@ -705,5 +521,33 @@ class MediaService:
         import mimetypes
         content_type, _ = mimetypes.guess_type(str(file_path))
         return content_type or "application/octet-stream"
+    
+    async def delete_media(self, media_id: int, user_id: int) -> bool:
+        """刪除媒體檔案"""
+        media = self.db.query(Media).filter(
+            Media.id == media_id,
+            Media.user_id == user_id
+        ).first()
+        
+        if not media:
+            return False
+        
+        # 刪除實體檔案
+        if media.file_path:
+            file_path = self.upload_dir / media.file_path
+            if file_path.exists():
+                file_path.unlink()
+        
+        # 刪除縮略圖
+        if media.thumbnail_path:
+            thumb_path = self.upload_dir / media.thumbnail_path
+            if thumb_path.exists():
+                thumb_path.unlink()
+        
+        # 刪除資料庫記錄
+        self.db.delete(media)
+        self.db.commit()
+        
+        return True
 
-
+    

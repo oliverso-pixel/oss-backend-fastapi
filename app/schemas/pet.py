@@ -3,10 +3,11 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import date, datetime
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.mixins import URLFieldMixin
 from app.models.pet import Species, Gender
 from app.models.user import PrivacyLevel
 
-class PetBase(BaseSchema):
+class PetBase(BaseSchema, URLFieldMixin):
     """寵物基礎 Schema"""
     name: str = Field(..., min_length=1, max_length=100)
     species: Species
@@ -29,12 +30,15 @@ class PetBase(BaseSchema):
         if v is not None and v < 0:
             raise ValueError('Weight must be positive')
         return v
+    
+    class Config:
+        from_attributes = True
 
 class PetCreate(PetBase):
     """創建寵物 Schema"""
     pass
 
-class PetUpdate(BaseSchema):
+class PetUpdate(BaseSchema, URLFieldMixin):
     """更新寵物 Schema"""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     breed: Optional[str] = Field(None, max_length=100)
@@ -46,19 +50,28 @@ class PetUpdate(BaseSchema):
     is_active: Optional[bool] = None
     privacy_level: Optional[PrivacyLevel] = None
 
+    class Config:
+        from_attributes = True
+
 class PetInDB(PetBase, TimestampSchema):
     """資料庫中的寵物 Schema"""
     id: int
     user_id: int
     is_active: bool
+
+    class Config:
+        from_attributes = True
     
-class PetPrivateResponse(BaseSchema):
+class PetPrivateResponse(BaseSchema, URLFieldMixin):
     """私密寵物響應 - 僅顯示基本資訊"""
     id: int
     name: str
     avatar_url: Optional[str] = None
     privacy_level: PrivacyLevel = PrivacyLevel.PRIVATE
     owner_username: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class PetPublicResponse(PetInDB):
     """公開寵物響應 Schema (完整資料)"""
@@ -76,6 +89,9 @@ class PetPublicResponse(PetInDB):
                 months = (today.year - self.birth_date.year) * 12 + today.month - self.birth_date.month
                 return f"{months} 個月"
         return "未知"
+    
+    class Config:
+        from_attributes = True
 
 # 為了兼容性，將 PetResponse 定義為 Public 版本
 PetResponse = PetPublicResponse

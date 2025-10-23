@@ -20,27 +20,12 @@ app = FastAPI(
 # 設定 CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    # allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 自定義異常處理器
-# @app.exception_handler(StarletteHTTPException)
-# async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-#     return JSONResponse(
-#         status_code=exc.status_code,
-#         content={"detail": exc.detail},
-#         headers=getattr(exc, "headers", None)
-#     )
-
-# @app.exception_handler(RequestValidationError)
-# async def validation_exception_handler(request: Request, exc: RequestValidationError):
-#     return JSONResponse(
-#         status_code=422,
-#         content={"detail": exc.errors()}
-#     )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -118,6 +103,7 @@ app.mount("/static", StaticFiles(directory=settings.UPLOAD_DIR), name="static")
 @app.on_event("startup")
 async def startup_event():
     # 初始化資料庫連接、Redis 等
+    # print(f"CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
     pass
 
 @app.on_event("shutdown")
