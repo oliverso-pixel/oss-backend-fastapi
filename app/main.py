@@ -3,12 +3,15 @@ from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
 from app.core.database import engine, Base
-from fastapi.middleware.cors import CORSMiddleware
+from app.core.redis import RedisManager
+from app.services.token_blacklist_service import token_blacklist_service
 import json
+
 # from app.middleware import auth_middleware, logging_middleware
 
 app = FastAPI(
@@ -102,12 +105,42 @@ app.mount("/static", StaticFiles(directory=settings.UPLOAD_DIR), name="static")
 
 @app.on_event("startup")
 async def startup_event():
-    # 初始化資料庫連接、Redis 等
+    """應用啟動時的初始化"""
+    # 延遲導入以避免循環引用
+    from app.core.redis import RedisManager
+    from app.services.token_blacklist_service import get_token_blacklist_service
+    
+    # 測試 Redis 連接
+    try:
+        redis_client = RedisManager.get_redis()
+        redis_client.ping()
+        print("✓ Redis connection successful")
+    except Exception as e:
+        print(f"⚠ Redis not available: {str(e)}")
+        print("⚠ Using in-memory fallback for token blacklist")
+    
+    # 初始化 token 黑名單服務
+    try:
+        blacklist_service = get_token_blacklist_service()
+        stats = blacklist_service.get_blacklist_stats()
+        print(f"✓ Token blacklist service initialized: {stats.get('backend_type', 'Unknown')}")
+    except Exception as e:
+        print(f"✗ Failed to initialize token blacklist service: {str(e)}")
+
     # print(f"CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
-    pass
+    # pass
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # 清理資源
-    pass
+    """應用關閉時的清理"""
+    from app.core.redis import RedisManager
+    
+    try:
+        RedisManager.close()
+        print("✓ Cleanup completed")
+    except Exception as e:
+        print(f"⚠ Cleanup error: {str(e)}")
+        
+    # pass
+
 

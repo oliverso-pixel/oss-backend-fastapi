@@ -18,7 +18,11 @@ class Settings(BaseSettings):
     )
 
     # Redis 設定
-    REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        env="REDIS_URL",
+        description="Redis connection URL"
+    )
 
     # JWT 設定
     SECRET_KEY: str = Field(..., env="SECRET_KEY")
@@ -49,10 +53,6 @@ class Settings(BaseSettings):
         path = Path(self.UPLOAD_DIR)
         path.mkdir(parents=True, exist_ok=True)
         return path
-    
-    # BASE_UPLOAD_PATH: str = os.getenv("BASE_UPLOAD_PATH", "/mnt/www/html/oss")
-    # BASE_URL: str = os.getenv("BASE_URL", "http://192.168.50.103")
-    # CDN_URL: Optional[str] = os.getenv("CDN_URL", None)  # 未來 CDN 支援
     
     # 檔案上傳限制
     MAX_FILE_SIZES: Dict[str, int] = {

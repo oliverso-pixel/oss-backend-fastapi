@@ -7,6 +7,7 @@ from app.core.permissions import is_admin
 from app.models.user import User
 from app.services.admin_service import AdminService
 from app.services.user_service import UserService
+from app.services.token_blacklist_service import token_blacklist_service
 from app.schemas.admin import (
     SystemStats, DashboardData, UserBulkAction, RoleUpdate,
     MerchantApproval, AuditLog, AdminNotification
@@ -289,4 +290,39 @@ def export_reports(
         "report_type": report_type,
         "date_range": f"{start_date} to {end_date}"
     }
+
+# === 黑名單管理端點 ===
+
+@router.get("/token-blacklist/stats")
+def get_blacklist_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(is_admin)
+) -> Any:
+    """獲取 Token 黑名單統計信息"""
+    return token_blacklist_service.get_blacklist_stats()
+
+@router.post("/token-blacklist/cleanup")
+def cleanup_blacklist(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(is_admin)
+) -> Any:
+    """清理過期的黑名單條目"""
+    removed = token_blacklist_service.cleanup_expired()
+    return {"message": f"Cleaned up {removed} expired entries"}
+
+@router.post("/users/{user_id}/revoke-tokens")
+def revoke_user_tokens(
+    user_id: int,
+    reason: str = Query("Admin action", description="Reason for revoking tokens"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(is_admin)
+) -> Any:
+    """撤銷指定用戶的所有 tokens"""
+    count = token_blacklist_service.blacklist_user_tokens(
+        user_id=user_id,
+        reason=reason,
+        blacklisted_by=current_user.id
+    )
+    
+    return {"message": f"Revoked {count} tokens for user {user_id}"}
 
